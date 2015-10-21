@@ -510,7 +510,6 @@ static inline long copy_from_user_preempt_disabled(void *to, const void __user *
 ({						\
 	int __ret;				\
 	preempt_enable_no_resched();		\
-	barrier();				\
 	__ret = get_user(x, ptr);		\
 	preempt_disable();			\
 	__ret;					\
@@ -520,7 +519,6 @@ static inline long copy_from_user_preempt_disabled(void *to, const void __user *
 ({						\
 	int __ret;				\
 	preempt_enable_no_resched();		\
-	barrier();				\
 	__ret = put_user(x, ptr);		\
 	preempt_disable();			\
 	__ret;					\
@@ -660,6 +658,8 @@ static int binder_update_page_range(struct binder_proc *proc, int allocate,
 	
 	preempt_enable_no_resched();
 
+	preempt_enable_no_resched();
+
 	if (mm) {
 		down_write(&mm->mmap_sem);
 		vma = proc->vma;
@@ -714,8 +714,9 @@ static int binder_update_page_range(struct binder_proc *proc, int allocate,
 		up_write(&mm->mmap_sem);
 		mmput(mm);
 	}
-	
+
 	preempt_disable();
+
 	return 0;
 
 free_range:
@@ -738,8 +739,9 @@ err_no_vma:
 		up_write(&mm->mmap_sem);
 		mmput(mm);
 	}
-	
+
 	preempt_disable();
+
 	return -ENOMEM;
 }
 
@@ -2274,9 +2276,7 @@ static void binder_transaction(struct binder_proc *proc,
 	list_add_tail(&tcomplete->entry, &thread->todo);
 	if (target_wait) {
 		if (reply || !(t->flags & TF_ONE_WAY)) {
-			preempt_disable();
 			wake_up_interruptible_sync(target_wait);
-			sched_preempt_enable_no_resched();
 		} else {
 			wake_up_interruptible(target_wait);
 		}
@@ -3355,8 +3355,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			goto err;
 		break;
 	case BINDER_SET_MAX_THREADS:
-		if (copy_from_user_preempt_disabled(&proc->max_threads,
-				ubuf, sizeof(proc->max_threads))) {
+		if (copy_from_user_preempt_disabled(&proc->max_threads, ubuf, sizeof(proc->max_threads))) {
 			ret = -EINVAL;
 			goto err;
 		}
@@ -3379,8 +3378,9 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			ret = -EINVAL;
 			goto err;
 		}
+
 		if (put_user_preempt_disabled(BINDER_CURRENT_PROTOCOL_VERSION,
-				&ver->protocol_version)) {
+			     &ver->protocol_version)) {
 			ret = -EINVAL;
 			goto err;
 		}
@@ -3442,6 +3442,7 @@ static struct vm_operations_struct binder_vm_ops = {
 static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int ret;
+
 	struct vm_struct *area;
 	struct binder_proc *proc = filp->private_data;
 	const char *failure_string;
@@ -3502,9 +3503,17 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 	vma->vm_ops = &binder_vm_ops;
 	vma->vm_private_data = proc;
 
+	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
+	if (!buffer) {
+		ret = -ENOMEM;
+		failure_string = "alloc buffer struct";
+		goto err_alloc_buf_struct_failed;
+	}
+
 	/* binder_update_page_range assumes preemption is disabled */
 	preempt_disable();
-	ret = binder_update_page_range(proc, 1, proc->buffer, proc->buffer + PAGE_SIZE, vma);
+	ret = __binder_update_page_range(proc, 1, proc->buffer,
+					 proc->buffer + BINDER_MIN_ALLOC, vma);
 	preempt_enable_no_resched();
 	if (ret) {
 		ret = -ENOMEM;
@@ -3795,6 +3804,7 @@ static void binder_deferred_func(struct work_struct *work)
 		trace_binder_lock(__func__);
 		mutex_lock(&binder_main_lock);
 		trace_binder_locked(__func__);
+
 		mutex_lock(&binder_deferred_lock);
 		preempt_disable();
 		if (!hlist_empty(&binder_deferred_list)) {
