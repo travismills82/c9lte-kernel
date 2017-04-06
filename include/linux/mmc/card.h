@@ -12,12 +12,12 @@
 
 #include <linux/device.h>
 #include <linux/mmc/core.h>
-#include <linux/mmc/mmc.h>
 #include <linux/mod_devicetable.h>
 #include <linux/notifier.h>
 #include <linux/errno.h>
 
 #define MMC_CARD_CMDQ_BLK_SIZE 512
+#define MMC_CARD_ERROR_LOGGING
 
 struct mmc_cid {
 	unsigned int		manfid;
@@ -120,6 +120,22 @@ struct mmc_ext_csd {
 	u8			fw_version;		/* 254 */
 	unsigned int            feature_support;
 #define MMC_DISCARD_FEATURE	BIT(0)                  /* CMD38 feature */
+	/*
+	 * smart_info : It's for eMMC 5.0 or later device
+	 * [63:56] : DEVICE_LIFE_TIME_EST_TYPE_B [269]
+	 * [55:48] : DEVICE_LIFE_TIME_EST_TYPE_A [268]
+	 * [47:40] : PRE_EOL_INFO [267]
+	 * [39:32] : OPTIMAL_TRIM_UNIT_SIZE [264]
+	 * [31:16] : DEVICE_VERSION [263-262]
+	 * [15:08] : HC_ERASE_GRP_SIZE [224]
+	 * [07:00] : HC_WP_GRP_SIZE [221]
+	 */
+	unsigned long long	smart_info;
+	/*
+	 * fwdate : It's for eMMC 5.0 or later device
+	 * [63:00] : FIRMWARE_VERSION [261-254]
+	 */
+	unsigned long long	fwdate;
 };
 
 struct sd_scr {
@@ -266,6 +282,17 @@ struct mmc_part {
 #define MMC_BLK_DATA_AREA_RPMB	(1<<3)
 };
 
+#ifdef MMC_CARD_ERROR_LOGGING
+struct mmc_card_error_log {
+	char	type[4];	// sbc, cmd, data, stop, busy
+	int	err_type;
+	u32	status;
+	u64	first_issue_time;
+	u64	last_issue_time;
+	u32	count;
+};
+#endif
+
 #define BKOPS_NUM_OF_SEVERITY_LEVELS	3
 #define BKOPS_SEVERITY_1_INDEX		0
 #define BKOPS_SEVERITY_2_INDEX		1
@@ -278,8 +305,6 @@ struct mmc_bkops_stats {
 	bool			print_stats;
 	unsigned int bkops_level[BKOPS_NUM_OF_SEVERITY_LEVELS];
 	bool			ignore_card_bkops_status;
-	unsigned int	auto_start;
-	unsigned int	auto_stop;
 };
 
 /**
@@ -359,7 +384,6 @@ struct mmc_card {
 #define MMC_STATE_CMDQ		(1<<12)         /* card is in cmd queue mode */
 #define MMC_STATE_SUSPENDED     (1<<13)         /* card is suspended */
 #define MMC_STATE_HS400_STROBE	(1<<14)         /* card is in strobe mode */
-#define MMC_STATE_AUTO_BKOPS	(1<<15)		/* card is doing auto BKOPS */
 	unsigned int		quirks; 	/* card quirks */
 #define MMC_QUIRK_LENIENT_FN0	(1<<0)		/* allow SDIO FN0 writes outside of the VS CCCR range */
 #define MMC_QUIRK_BLKSZ_FOR_BYTE_MODE (1<<1)	/* use func->cur_blksize */
@@ -427,6 +451,10 @@ struct mmc_card {
 	enum mmc_pon_type pon_type;
 	u8 *cached_ext_csd;
 	bool cmdq_init;
+#ifdef MMC_CARD_ERROR_LOGGING
+	struct device_attribute	error_count;
+	struct mmc_card_error_log err_log[10];
+#endif
 };
 
 /*
@@ -593,7 +621,6 @@ static inline void __maybe_unused remove_quirk(struct mmc_card *card, int data)
 #define mmc_card_need_bkops(c)	((c)->state & MMC_STATE_NEED_BKOPS)
 #define mmc_card_cmdq(c)       ((c)->state & MMC_STATE_CMDQ)
 #define mmc_card_suspended(c)  ((c)->state & MMC_STATE_SUSPENDED)
-#define mmc_card_doing_auto_bkops(c)	((c)->state & MMC_STATE_AUTO_BKOPS)
 
 #define mmc_card_set_present(c)	((c)->state |= MMC_STATE_PRESENT)
 #define mmc_card_set_readonly(c) ((c)->state |= MMC_STATE_READONLY)
@@ -620,8 +647,6 @@ static inline void __maybe_unused remove_quirk(struct mmc_card *card, int data)
 #define mmc_card_clr_cmdq(c)           ((c)->state &= ~MMC_STATE_CMDQ)
 #define mmc_card_set_suspended(c) ((c)->state |= MMC_STATE_SUSPENDED)
 #define mmc_card_clr_suspended(c) ((c)->state &= ~MMC_STATE_SUSPENDED)
-#define mmc_card_set_auto_bkops(c)	((c)->state |= MMC_STATE_AUTO_BKOPS)
-#define mmc_card_clr_auto_bkops(c)	((c)->state &= ~MMC_STATE_AUTO_BKOPS)
 
 static inline int get_mmc_fw_version(struct mmc_card *card)
 {
@@ -711,16 +736,6 @@ static inline bool mmc_enable_qca6574_settings(const struct mmc_card *c)
 static inline bool mmc_enable_qca9377_settings(const struct mmc_card *c)
 {
 	return c->quirks & MMC_QUIRK_QCA9377_SETTINGS;
-}
-
-static inline bool mmc_card_support_auto_bkops(const struct mmc_card *c)
-{
-	return c->ext_csd.rev >= 7;
-}
-
-static inline bool mmc_card_configured_manual_bkops(const struct mmc_card *c)
-{
-	return c->ext_csd.bkops_en & EXT_CSD_BKOPS_MANUAL_EN;
 }
 
 #define mmc_card_name(c)	((c)->cid.prod_name)

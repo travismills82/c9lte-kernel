@@ -4250,9 +4250,11 @@ static int mmc_blk_probe(struct mmc_card *card)
 	mmc_fixup_device(card, blk_fixups);
 
 #ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	mmc_set_bus_resume_policy(card->host, 1);
-	pr_debug("%s: enabling deferred resume !!!\n",
+	if(card && mmc_card_sd(card)) {
+		mmc_set_bus_resume_policy(card->host, 1);
+		pr_debug("%s: enabling deferred resume !!!\n",
 			mmc_hostname(card->host));
+	}
 #endif
 	if (mmc_add_disk(md))
 		goto out;
@@ -4280,7 +4282,8 @@ static void mmc_blk_remove(struct mmc_card *card)
 	mmc_blk_remove_req(md);
 	mmc_set_drvdata(card, NULL);
 #ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	mmc_set_bus_resume_policy(card->host, 0);
+	if(card && mmc_card_sd(card))
+		mmc_set_bus_resume_policy(card->host, 0);
 #endif
 }
 
@@ -4307,8 +4310,6 @@ static void mmc_blk_shutdown(struct mmc_card *card)
 		mmc_rpm_hold(card->host, &card->dev);
 		mmc_claim_host(card->host);
 		mmc_stop_bkops(card);
-		if (mmc_card_doing_auto_bkops(card))
-			mmc_set_auto_bkops(card, false);
 		mmc_release_host(card->host);
 		mmc_send_pon(card);
 		mmc_rpm_release(card->host, &card->dev);

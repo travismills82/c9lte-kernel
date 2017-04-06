@@ -703,29 +703,6 @@
 			};
 		};
 
-		cam_sensor_front1_default {
-			/* RESET, STANDBY */
-			qcom,pins = <&gp 131>, <&gp 38>;
-			qcom,num-grp-pins = <2>;
-			label = "cam_sensor_front1_default";
-			/* active state */
-			cam_sensor_front1_default: cam_sensor_front1_default {
-				drive-strength = <2>; /* 2 MA */
-				bias-disable; /* No PULL */
-			};
-		};
-
-		cam_sensor_front1_sleep {
-			/* RESET, STANDBY */
-			qcom,pins = <&gp 131>, <&gp 38>;
-			qcom,num-grp-pins = <2>;
-			label = "cam_sensor_front1_sleep";
-			/*suspended state */
-			cam_sensor_front1_sleep: cam_sensor_front1_sleep {
-				drive-strength = <2>; /* 2 MA */
-				bias-disable; /* No PULL */
-			};
-		};
 
 		/* add pingrp for touchscreen */
 		pmx_ts_int_active {
@@ -1344,7 +1321,7 @@
 			};
 		};
 
-		tpiu_setb_14 {
+		/*tpiu_setb_14 {
 			qcom,pins = <&gp 38>;
 			qcom,num-grp-pins = <1>;
 			qcom,pin-func = <8>;
@@ -1353,7 +1330,7 @@
 				drive-strength = <16>;
 				bias-disable;
 			};
-		};
+		};*/
 
 		tpiu_setb_15 {
 			qcom,pins = <&gp 116>;

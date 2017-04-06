@@ -42,6 +42,23 @@ static struct wcnss_prealloc wcnss_allocs[] = {
 	{0, 8  * 1024, NULL},
 	{0, 8  * 1024, NULL},
 	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL},
+	{0, 8  * 1024, NULL}, // 8 * 24
+	{0, 12 * 1024, NULL},
 	{0, 12 * 1024, NULL},
 	{0, 12 * 1024, NULL},
 	{0, 12 * 1024, NULL},
@@ -105,6 +122,7 @@ int wcnss_prealloc_init(void)
 {
 	int i;
 
+	
 	for (i = 0; i < ARRAY_SIZE(wcnss_allocs); i++) {
 		wcnss_allocs[i].occupied = 0;
 		wcnss_allocs[i].ptr = kmalloc(wcnss_allocs[i].size, GFP_KERNEL);
@@ -114,6 +132,7 @@ int wcnss_prealloc_init(void)
 
 	return 0;
 }
+EXPORT_SYMBOL(wcnss_prealloc_init);
 
 void wcnss_prealloc_deinit(void)
 {
@@ -124,6 +143,7 @@ void wcnss_prealloc_deinit(void)
 		wcnss_allocs[i].ptr = NULL;
 	}
 }
+EXPORT_SYMBOL(wcnss_prealloc_deinit);
 
 #ifdef CONFIG_SLUB_DEBUG
 static void wcnss_prealloc_save_stack_trace(struct wcnss_prealloc *entry)
@@ -159,6 +179,8 @@ void *wcnss_prealloc_get(unsigned int size)
 
 		if (wcnss_allocs[i].size > size) {
 			/* we found the slot */
+			pr_err("wcnss: %s: size: %d index %d\n",
+				__func__, size, i);
 			wcnss_allocs[i].occupied = 1;
 			spin_unlock_irqrestore(&alloc_lock, flags);
 			wcnss_prealloc_save_stack_trace(&wcnss_allocs[i]);
@@ -182,6 +204,8 @@ int wcnss_prealloc_put(void *ptr)
 	spin_lock_irqsave(&alloc_lock, flags);
 	for (i = 0; i < ARRAY_SIZE(wcnss_allocs); i++) {
 		if (wcnss_allocs[i].ptr == ptr) {
+			pr_err("wcnss: %s: index %d\n",
+				__func__, i);
 			wcnss_allocs[i].occupied = 0;
 			spin_unlock_irqrestore(&alloc_lock, flags);
 			return 1;

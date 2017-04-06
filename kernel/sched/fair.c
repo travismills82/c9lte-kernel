@@ -30,6 +30,9 @@
 #include <linux/migrate.h>
 #include <linux/task_work.h>
 #include <linux/ratelimit.h>
+#ifdef CONFIG_SCHED_TASK_BEHAVIOR
+#include <linux/oom.h>
+#endif /*CONFIG_SCHED_TASK_BEHAVIOR */
 
 #include <trace/events/sched.h>
 
@@ -1479,6 +1482,17 @@ unsigned int up_down_migrate_scale_factor = 1024;
  */
 unsigned int sysctl_sched_boost;
 
+#ifdef CONFIG_SCHED_TASK_BEHAVIOR
+/*
+ * The ratio that the time the task spent in doing io in the last
+ * sysctl_time_slice_value to the time the sum_exec_runtime the task spent
+ * in the sysctl_time_slive_value.
+ */
+u32 __read_mostly sysctl_io_exec_ratio = 10;
+
+extern unsigned int sysctl_sched_boot_complete_pct;
+#endif /* CONFIG_SCHED_TASK_BEHAVIOR */
+
 void update_up_down_migrate(void)
 {
 	unsigned int up_migrate = pct_to_real(sysctl_sched_upmigrate_pct);
@@ -1985,7 +1999,7 @@ static int best_small_task_cpu(struct task_struct *p, int sync)
 	cpumask_and(&temp, &mpc_mask, cpu_possible_mask);
 	hmp_capable = !cpumask_full(&temp);
 
-	cpumask_and(&search_cpu, tsk_cpus_allowed(p), cpu_online_mask);
+	cpumask_and(&search_cpu, tsk_cpus_allowed(p), cpu_active_mask);
 	if (unlikely(!cpumask_test_cpu(i, &search_cpu))) {
 		i = cpumask_first(&search_cpu);
 		if (i >= nr_cpu_ids)
@@ -2033,7 +2047,7 @@ static int best_small_task_cpu(struct task_struct *p, int sync)
 	if (min_cstate_cpu != -1)
 		return min_cstate_cpu;
 
-	cpumask_and(&search_cpu, tsk_cpus_allowed(p), cpu_online_mask);
+	cpumask_and(&search_cpu, tsk_cpus_allowed(p), cpu_active_mask);
 	cpumask_andnot(&search_cpu, &search_cpu, &fb_search_cpu);
 	for_each_cpu(i, &search_cpu) {
 		rq = cpu_rq(i);
@@ -2189,7 +2203,7 @@ static int select_packing_target(struct task_struct *p, int best_cpu)
 	if (cpu_max_freq(best_cpu) <= cpu_mostly_idle_freq(best_cpu))
 		return best_cpu;
 
-	cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_online_mask);
+	cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_active_mask);
 	cpumask_and(&search_cpus, &search_cpus, &rq->freq_domain_cpumask);
 
 	/* Pick the first lowest power cpu as target */
@@ -2240,6 +2254,13 @@ static int select_best_cpu(struct task_struct *p, int target, int reason,
 	struct related_thread_group *grp;
 	struct sched_cluster *pref_cluster = NULL;
 
+#ifdef CONFIG_SCHED_TASK_BEHAVIOR
+	unsigned long power_cluster_cpu_mask = 0x0F;
+	unsigned long full_cpu_mask = 0xFF;
+	s32 oom_score;
+	u64 exec_slice;
+#endif /* CONFIG_SCHED_TASK_BEHAVIOR */
+
 	rcu_read_lock();	/* Protected access to p->grp */
 
 	grp = p->grp;
@@ -2270,6 +2291,43 @@ static int select_best_cpu(struct task_struct *p, int target, int reason,
 		sync = 0;
 	}
 
+#ifdef CONFIG_SCHED_TASK_BEHAVIOR
+	if(sched_feat(FG_BG_CLUSTER_SELECTION) && is_boot_complete()) {
+
+		/*
+		 * This equation is used to translate the Kernel OOM values to the
+		 * values assigned by Android and hence use them to characterize a task
+		 * as a background task
+		 */
+		oom_score = oom_adj_convert(p);
+
+		/* 
+		 * A right-shift by 20 is used to convert ns to ms efficiently, to make the
+		 * calculations simpler.
+		 */
+		exec_slice = (p->se.sum_exec_runtime -
+			      p->se.last_io_sum_exec_runtime) >> 20;
+
+		if(((p->se.io_request_tat > 0) && (exec_slice > 0) &&
+		   ((exec_slice * sysctl_io_exec_ratio) <
+		    (p->se.io_request_tat))) ||
+		   (oom_score == OOM_PERSISTENT_TASK ||
+		    oom_score == OOM_ADJUST_MIN)) {
+			if((cpumask_equal(tsk_cpus_allowed(p),
+					 to_cpumask(&full_cpu_mask))) )
+				do_set_cpus_allowed
+					(p,
+					 to_cpumask(&power_cluster_cpu_mask));
+		}
+		else {
+			if(cpumask_equal(tsk_cpus_allowed(p),
+					 to_cpumask(&power_cluster_cpu_mask)))
+				do_set_cpus_allowed(p,
+						    to_cpumask(&full_cpu_mask));
+		}
+	}
+#endif /* CONFIG_SCHED_TASK_BEHAVIOR */
+
 	if (small_task && !boost) {
 		best_cpu = best_small_task_cpu(p, sync);
 		prefer_idle = 0;	/* For sched_task_load tracepoint */
@@ -2277,7 +2335,7 @@ static int select_best_cpu(struct task_struct *p, int target, int reason,
 	}
 
 	trq = task_rq(p);
-	cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_online_mask);
+	cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_active_mask);
 	for_each_cpu(i, &search_cpus) {
 		struct rq *rq = cpu_rq(i);
 
@@ -2960,7 +3018,7 @@ static int lower_power_cpu_available(struct task_struct *p, int cpu)
 	 * This function should be called only when task 'p' fits in the current
 	 * CPU which can be ensured by task_will_fit() prior to this.
 	 */
-	cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_online_mask);
+	cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_active_mask);
 	cpumask_and(&search_cpus, &search_cpus, &rq->freq_domain_cpumask);
 	cpumask_clear_cpu(lowest_power_cpu, &search_cpus);
 
@@ -3234,6 +3292,11 @@ void init_new_task_load(struct task_struct *p)
 		init_load_pelt ? LOAD_AVG_MAX : 0;
 	p->se.avg.runnable_avg_sum = init_load_pelt;
 	p->se.avg.runnable_avg_sum_scaled = init_load_pelt;
+#ifdef CONFIG_SCHED_TASK_BEHAVIOR
+	p->se.io_request_tat = 0;
+	p->se.last_io_time = 0;
+	p->se.last_io_sum_exec_runtime = 0;
+#endif /* CONFIG_SCHED_TASK_BEHAVIOR */
 }
 
 #else /* CONFIG_SCHED_HMP */
@@ -4369,10 +4432,12 @@ static void expire_cfs_rq_runtime(struct cfs_rq *cfs_rq)
 	 * has not truly expired.
 	 *
 	 * Fortunately we can check determine whether this the case by checking
-	 * whether the global deadline has advanced.
+	 * whether the global deadline has advanced. It is valid to compare
+	 * cfs_b->runtime_expires without any locks since we only care about
+	 * exact equality, so a partial write will still work.
 	 */
 
-	if ((s64)(cfs_rq->runtime_expires - cfs_b->runtime_expires) >= 0) {
+	if (cfs_rq->runtime_expires != cfs_b->runtime_expires) {
 		/* extend local deadline, drift is bounded above by 2 ticks */
 		cfs_rq->runtime_expires += TICK_NSEC;
 	} else {
@@ -4650,21 +4715,21 @@ next:
 static int do_sched_cfs_period_timer(struct cfs_bandwidth *cfs_b, int overrun)
 {
 	u64 runtime, runtime_expires;
-	int idle = 1, throttled;
+	int throttled;
 
-	raw_spin_lock(&cfs_b->lock);
 	/* no need to continue the timer with no bandwidth constraint */
 	if (cfs_b->quota == RUNTIME_INF)
-		goto out_unlock;
+		goto out_deactivate;
 
 	throttled = !list_empty(&cfs_b->throttled_cfs_rq);
-	/* idle depends on !throttled (for the case of a large deficit) */
-	idle = cfs_b->idle && !throttled;
 	cfs_b->nr_periods += overrun;
 
-	/* if we're going inactive then everything else can be deferred */
-	if (idle)
-		goto out_unlock;
+	/*
+	 * idle depends on !throttled (for the case of a large deficit), and if
+	 * we're going inactive then everything else can be deferred
+	 */
+	if (cfs_b->idle && !throttled)
+		goto out_deactivate;
 
 	/*
 	 * if we have relooped after returning idle once, we need to update our
@@ -4678,7 +4743,7 @@ static int do_sched_cfs_period_timer(struct cfs_bandwidth *cfs_b, int overrun)
 	if (!throttled) {
 		/* mark as potentially idle for the upcoming period */
 		cfs_b->idle = 1;
-		goto out_unlock;
+		return 0;
 	}
 
 	/* account preceding periods in which throttling occurred */
@@ -4718,12 +4783,12 @@ static int do_sched_cfs_period_timer(struct cfs_bandwidth *cfs_b, int overrun)
 	 * timer to remain active while there are any throttled entities.)
 	 */
 	cfs_b->idle = 0;
-out_unlock:
-	if (idle)
-		cfs_b->timer_active = 0;
-	raw_spin_unlock(&cfs_b->lock);
 
-	return idle;
+	return 0;
+
+out_deactivate:
+	cfs_b->timer_active = 0;
+	return 1;
 }
 
 /* a cfs_rq won't donate quota below this amount */
@@ -4846,6 +4911,11 @@ static void do_sched_cfs_slack_timer(struct cfs_bandwidth *cfs_b)
  */
 static void check_enqueue_throttle(struct cfs_rq *cfs_rq)
 {
+	struct rq *rq = cfs_rq->rq;
+
+	if(!rq->online)
+		return;
+
 	if (!cfs_bandwidth_used())
 		return;
 
@@ -4866,6 +4936,11 @@ static void check_enqueue_throttle(struct cfs_rq *cfs_rq)
 /* conditionally throttle active cfs_rq's from put_prev_entity() */
 static void check_cfs_rq_runtime(struct cfs_rq *cfs_rq)
 {
+	struct rq *rq = cfs_rq->rq;
+
+	if(!rq->online)
+		return;
+
 	if (!cfs_bandwidth_used())
 		return;
 
@@ -4903,6 +4978,7 @@ static enum hrtimer_restart sched_cfs_period_timer(struct hrtimer *timer)
 	int overrun;
 	int idle = 0;
 
+	raw_spin_lock(&cfs_b->lock);
 	for (;;) {
 		now = hrtimer_cb_get_time(timer);
 		overrun = hrtimer_forward(timer, now, cfs_b->period);
@@ -4912,6 +4988,7 @@ static enum hrtimer_restart sched_cfs_period_timer(struct hrtimer *timer)
 
 		idle = do_sched_cfs_period_timer(cfs_b, overrun);
 	}
+	raw_spin_unlock(&cfs_b->lock);
 
 	return idle ? HRTIMER_NORESTART : HRTIMER_RESTART;
 }
@@ -4967,6 +5044,19 @@ static void destroy_cfs_bandwidth(struct cfs_bandwidth *cfs_b)
 	hrtimer_cancel(&cfs_b->slack_timer);
 }
 
+static void __maybe_unused update_runtime_enabled(struct rq *rq)
+{
+	struct cfs_rq *cfs_rq;
+
+	for_each_leaf_cfs_rq(rq, cfs_rq) {
+		struct cfs_bandwidth *cfs_b = &cfs_rq->tg->cfs_bandwidth;
+
+		raw_spin_lock(&cfs_b->lock);
+		cfs_rq->runtime_enabled = cfs_b->quota != RUNTIME_INF;
+		raw_spin_unlock(&cfs_b->lock);
+	}
+}
+
 static void __maybe_unused unthrottle_offline_cfs_rqs(struct rq *rq)
 {
 	struct cfs_rq *cfs_rq;
@@ -4982,6 +5072,12 @@ static void __maybe_unused unthrottle_offline_cfs_rqs(struct rq *rq)
 		 * there's some valid quota amount
 		 */
 		cfs_rq->runtime_remaining = cfs_b->quota;
+		/*
+		 * Offline rq is schedulable till cpu is completely disabled
+		 * in take_cpu_down(), so we prevent new cfs throttling here.
+		 */
+		cfs_rq->runtime_enabled = 0;
+
 		if (cfs_rq_throttled(cfs_rq))
 			unthrottle_cfs_rq(cfs_rq);
 	}
@@ -5026,6 +5122,7 @@ static inline struct cfs_bandwidth *tg_cfs_bandwidth(struct task_group *tg)
 	return NULL;
 }
 static inline void destroy_cfs_bandwidth(struct cfs_bandwidth *cfs_b) {}
+static inline void update_runtime_enabled(struct rq *rq) {}
 static inline void unthrottle_offline_cfs_rqs(struct rq *rq) {}
 
 #endif /* CONFIG_CFS_BANDWIDTH */
@@ -8500,6 +8597,8 @@ void trigger_load_balance(struct rq *rq, int cpu)
 static void rq_online_fair(struct rq *rq)
 {
 	update_sysctl();
+
+	update_runtime_enabled(rq);
 }
 
 static void rq_offline_fair(struct rq *rq)

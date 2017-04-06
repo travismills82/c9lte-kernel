@@ -52,6 +52,10 @@
 #include <linux/compat_qseecom.h>
 #endif
 
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/qcom/sec_debug.h>
+#endif
+
 #define QSEECOM_DEV			"qseecom"
 #define QSEOS_VERSION_14		0x14
 #define QSEEE_VERSION_00		0x400000
@@ -80,6 +84,9 @@
 
 /* Encrypt/Decrypt Data Integrity Partition (DIP) for MDTP */
 #define SCM_MDTP_CIPHER_DIP		0x01
+
+/* Maximum Allowed Size (128K) of Data Integrity Partition (DIP) for MDTP */
+#define MAX_DIP			0x20000
 
 #define RPMB_SERVICE			0x2000
 #define SSD_SERVICE			0x3000
@@ -1835,6 +1842,9 @@ static int __qseecom_check_app_exists(struct qseecom_check_app_ireq req)
 	}
 }
 
+// TEMP DEBUG FOR TZ_ICCC LOADING FAIL(retry before panic)
+static int ICCC_RETRY_TOTAL_COUNT = 0;
+
 static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 {
 	struct qseecom_registered_app_list *entry = NULL;
@@ -1851,7 +1861,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 	struct qseecom_load_app_64bit_ireq load_req_64bit;
 	void *cmd_buf = NULL;
 	size_t cmd_len;
-
+    	bool first_time = false;
 	/* Copy the relevant information needed for loading the image */
 	if (copy_from_user(&load_img_req,
 				(void __user *)argp,
@@ -1922,6 +1932,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		&qseecom.registered_app_list_lock, flags);
 		ret = 0;
 	} else {
+	    	first_time = true;
 		pr_warn("App (%s) does'nt exist, loading apps for first time\n",
 			(char *)(load_img_req.img_name));
 		/* Get the handle of the shared fd */
@@ -1970,6 +1981,23 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		/*  SCM_CALL  to load the app and get the app_id back */
 		ret = qseecom_scm_call(SCM_SVC_TZSCHEDULER, 1, cmd_buf,
 			cmd_len, &resp, sizeof(resp));
+
+		// TEMP DEBUG FOR TZ_ICCC LOADING FAIL(retry before panic)
+		#define MAX_RETRY_FOR_LOADING 2
+		if (ret && !strncmp((char *)(load_img_req.img_name), "tz_iccc", 7)) {
+			int retry = 0;
+			while (retry++ < MAX_RETRY_FOR_LOADING) {
+				ret = qseecom_scm_call(SCM_SVC_TZSCHEDULER, 1, cmd_buf,
+						cmd_len, &resp, sizeof(resp));
+				if(!ret) {
+					pr_err("%s: TZ_ICCC loading success \
+						(retry=%d)\n", __func__, retry);
+					break;
+				}
+			}
+			ICCC_RETRY_TOTAL_COUNT += retry;
+		}
+
 		if (ret) {
 			pr_err("scm_call to load app failed\n");
 			if (!IS_ERR_OR_NULL(ihandle))
@@ -2042,8 +2070,15 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 	load_img_req.app_id = app_id;
 	if (copy_to_user(argp, &load_img_req, sizeof(load_img_req))) {
 		pr_err("copy_to_user failed\n");
-		kzfree(entry);
 		ret = -EFAULT;
+		if (first_time == true) {
+         		spin_lock_irqsave(
+            			&qseecom.registered_app_list_lock, flags);
+         		list_del(&entry->list);
+         		spin_unlock_irqrestore(
+            			&qseecom.registered_app_list_lock, flags);
+         		kzfree(entry);
+      		}
 	}
 
 loadapp_err:
@@ -2148,14 +2183,16 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 		if (ret) {
 			pr_err("scm_call to unload app (id = %d) failed\n",
 								req.app_id);
-			return -EFAULT;
+			ret = -EFAULT;
+			goto unload_exit;
 		} else {
 			pr_warn("App id %d now unloaded\n", req.app_id);
 		}
 		if (resp.result == QSEOS_RESULT_FAILURE) {
 			pr_err("app (%d) unload_failed!!\n",
 					data->client.app_id);
-			return -EFAULT;
+			ret = -EFAULT;
+			goto unload_exit;
 		}
 		if (resp.result == QSEOS_RESULT_SUCCESS)
 			pr_debug("App (%d) is unloaded!!\n",
@@ -2166,7 +2203,7 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 			if (ret) {
 				pr_err("process_incomplete_cmd fail err: %d\n",
 									ret);
-				return ret;
+				goto unload_exit;
 			}
 		}
 	}
@@ -2234,6 +2271,15 @@ int __qseecom_process_rpmb_svc_cmd(struct qseecom_dev_handle *data_ptr,
 	if ((uintptr_t)req_ptr->cmd_req_buf !=
 			data_ptr->client.user_virt_sb_base) {
 		pr_err("cmd buf not pointing to base offset of shared buffer\n");
+		return -EINVAL;
+	}
+
+	if (((uintptr_t)req_ptr->cmd_req_buf <
+			data_ptr->client.user_virt_sb_base)
+			|| ((uintptr_t)req_ptr->cmd_req_buf >=
+			(data_ptr->client.user_virt_sb_base +
+			data_ptr->client.sb_length))) {
+		pr_err("cmd buffer address not within shared bufffer\n");
 		return -EINVAL;
 	}
 
@@ -2658,6 +2704,33 @@ static int __qseecom_send_cmd(struct qseecom_dev_handle *data,
 		pr_err("app_id %d (%s) is not found\n", data->client.app_id,
 			(char *)data->client.app_name);
 		return -ENOENT;
+	}
+
+	if (req->cmd_req_buf == NULL || req->resp_buf == NULL) {
+		pr_err("cmd buffer or response buffer is null\n");
+		return -EINVAL;
+	}
+	
+	if (((uintptr_t)req->cmd_req_buf < data->client.user_virt_sb_base) ||
+		((uintptr_t)req->cmd_req_buf >= (data->client.user_virt_sb_base +
+					data->client.sb_length))) {
+		pr_err("cmd buffer address not within shared bufffer\n");
+		return -EINVAL;
+	}
+
+	if (((uintptr_t)req->resp_buf < data->client.user_virt_sb_base)  ||
+		((uintptr_t)req->resp_buf >= (data->client.user_virt_sb_base +
+					data->client.sb_length))){
+		pr_err("response buffer address not within shared bufffer\n");
+		return -EINVAL;
+	}
+	
+	if ((req->cmd_req_len == 0) || (req->resp_len == 0) ||
+		req->cmd_req_len > data->client.sb_length ||
+		req->resp_len > data->client.sb_length) {
+		pr_err("cmd buffer length or "
+				"response buffer length not valid\n");
+		return -EINVAL;
 	}
 
 	if (qseecom.qsee_version < QSEE_VERSION_40) {
@@ -3226,6 +3299,31 @@ static int __qseecom_send_modfd_cmd(struct qseecom_dev_handle *data,
 	if (ret) {
 		pr_err("copy_from_user failed\n");
 		return ret;
+	}
+
+	if (req.cmd_req_len == 0 || req.cmd_req_len > data->client.sb_length ||
+		req.resp_len > data->client.sb_length) {
+		pr_err("cmd or response buffer length not valid\n");
+		return -EINVAL;
+	}
+
+	if (req.cmd_req_buf == NULL || req.resp_buf == NULL) {
+		pr_err("cmd buffer or response buffer is null\n");
+		return -EINVAL;
+	}
+	
+	if (((uintptr_t)req.cmd_req_buf < data->client.user_virt_sb_base) ||
+		((uintptr_t)req.cmd_req_buf >= (data->client.user_virt_sb_base +
+					data->client.sb_length))) {
+		pr_err("cmd buffer address not within shared bufffer\n");
+		return -EINVAL;
+	}
+
+	if (((uintptr_t)req.resp_buf < data->client.user_virt_sb_base)  ||
+		((uintptr_t)req.resp_buf >= (data->client.user_virt_sb_base +
+					data->client.sb_length))){
+		pr_err("response buffer address not within shared bufffer\n");
+		return -EINVAL;
 	}
 
 	send_cmd_req.cmd_req_buf = req.cmd_req_buf;
@@ -5508,7 +5606,8 @@ static int qseecom_mdtp_cipher_dip(void __user *argp)
 		}
 
 		if (req.in_buf == NULL || req.out_buf == NULL ||
-			req.in_buf_size == 0 || req.out_buf_size == 0 ||
+			req.in_buf_size == 0 || req.in_buf_size > MAX_DIP ||
+			req.out_buf_size == 0 || req.out_buf_size > MAX_DIP ||
 				req.direction > 1) {
 				pr_err("invalid parameters\n");
 				ret = -EINVAL;
@@ -7404,6 +7503,10 @@ static int qseecom_probe(struct platform_device *pdev)
 					cmd_len = sizeof(struct
 					qsee_apps_region_info_64bit_ireq);
 				}
+#ifdef CONFIG_SEC_DEBUG_SUBSYS
+				sec_debug_secure_app_addr_size(req.addr, req.size);
+#endif
+
 				pr_warn("secure app region addr=0x%x size=0x%x",
 							req.addr, req.size);
 			} else {

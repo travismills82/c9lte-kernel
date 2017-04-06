@@ -20,16 +20,6 @@ struct v4l2_subdev *msm_buf_mngr_get_subdev(void);
 
 #ifdef CONFIG_COMPAT
 
-struct msm_buf_mngr_info32_t {
-	uint32_t session_id;
-	uint32_t stream_id;
-	uint32_t frame_id;
-	struct compat_timeval timestamp;
-	uint32_t index;
-	uint32_t reserved;
-	enum msm_camera_buf_mngr_buf_type type;
-	struct msm_camera_user_buf_cont_t user_buf;
-};
 
 #define VIDIOC_MSM_BUF_MNGR_GET_BUF32 \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 33, struct msm_buf_mngr_info32_t)

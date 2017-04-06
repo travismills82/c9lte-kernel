@@ -373,6 +373,7 @@ struct mdss_util_intf {
 };
 
 struct mdss_util_intf *mdss_get_util_intf(void);
+bool mdss_get_irq_enable_state(struct mdss_hw *hw);
 
 static inline struct ion_client *mdss_get_ionclient(void)
 {
@@ -422,5 +423,10 @@ static inline bool mdss_has_quirk(struct mdss_data_type *mdata,
 		dss_reg_w(&mdata->mdss_io, offset, value, 0)
 #define MDSS_REG_READ(mdata, offset) \
 		dss_reg_r(&mdata->mdss_io, offset, 0)
+
+#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
+extern void mdss_dump_reg(u32 reg_dump_flag,
+	char *addr, int len, u32 **dump_mem, bool atomic_context);
+#endif
 
 #endif /* MDSS_H */

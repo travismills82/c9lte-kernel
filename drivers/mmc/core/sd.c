@@ -1127,7 +1127,9 @@ free_card:
 static void mmc_sd_remove(struct mmc_host *host)
 {
 	BUG_ON(!host);
-	BUG_ON(!host->card);
+
+	if (!host->card)
+		return;
 
 	mmc_exit_clk_scaling(host);
 	mmc_remove_card(host->card);
@@ -1157,6 +1159,23 @@ static void mmc_sd_detect(struct mmc_host *host)
 
 	BUG_ON(!host);
 	BUG_ON(!host->card);
+
+#if defined(CONFIG_MMC_BLOCK_DEFERRED_RESUME)
+	if (host->ops->get_cd && host->ops->get_cd(host) == 0) {
+		if (host->card) {
+			mmc_card_set_removed(host->card);
+			mmc_sd_remove(host);
+		}
+
+		mmc_claim_host(host);
+		mmc_detach_bus(host);
+		mmc_power_off(host);
+		mmc_release_host(host);
+		pr_err("%s: card is removed...\n", mmc_hostname(host));
+		return;
+	}
+
+#endif
 
 	mmc_rpm_hold(host, &host->card->dev);
 	mmc_claim_host(host);
@@ -1211,6 +1230,13 @@ static int mmc_sd_suspend(struct mmc_host *host)
 
 	BUG_ON(!host);
 	BUG_ON(!host->card);
+
+	/*
+	 * Disable clock scaling before suspend and enable it after resume so
+	 * as to avoid clock scaling decisions kicking in during this window.
+	 */
+	if (mmc_can_scale_clk(host))
+		mmc_disable_clk_scaling(host);
 
 	mmc_claim_host(host);
 	if (!mmc_host_is_spi(host))

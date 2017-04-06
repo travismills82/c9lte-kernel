@@ -1335,6 +1335,7 @@ int mdss_mdp_pipe_destroy(struct mdss_mdp_pipe *pipe)
 				pipe->num);
 		return -EBUSY;
 	}
+	MDSS_XLOG(pipe->num);
 	wake_up_all(&pipe->free_waitq);
 	mutex_unlock(&mdss_mdp_sspp_lock);
 
@@ -1427,6 +1428,9 @@ static int mdss_mdp_image_setup(struct mdss_mdp_pipe *pipe,
 			pipe->img_width, pipe->img_height,
 			pipe->src.x, pipe->src.y, pipe->src.w, pipe->src.h,
 			pipe->dst.x, pipe->dst.y, pipe->dst.w, pipe->dst.h);
+	MDSS_XLOG(pipe->mixer_left->ctl->num, pipe->num, pipe->img_width, pipe->img_height, pipe->flags);
+	MDSS_XLOG(pipe->src.x, pipe->src.y, pipe->src.w, pipe->src.h);
+	MDSS_XLOG(pipe->dst.x, pipe->dst.y, pipe->dst.w, pipe->dst.h);
 
 	width = pipe->img_width;
 	height = pipe->img_height;
@@ -1683,6 +1687,30 @@ int mdss_mdp_pipe_addr_setup(struct mdss_data_type *mdata,
 
 	return 0;
 }
+/* check First frame of Secure display (RGB and FB0) to avoid to be flushed (W/A of distorted image on SSPAY) */
+static void mdss_validate_secure_layer(struct mdss_mdp_pipe *pipe,u32 cur_buf)
+{
+	static u32 pre_buf = 0;
+
+	if(!pipe->mfd)
+		return;
+
+	pipe->mfd->sd_skiplayer = false;
+
+	if (pipe->mfd->sd_framecnt) {
+		if (pipe->mfd->sd_framecnt==1) {
+			pre_buf = (u32)cur_buf;
+			pipe->mfd->sd_skiplayer = true;
+		} else {
+			if (pre_buf&&(pre_buf ==(u32)cur_buf)) {
+				pipe->mfd->sd_skiplayer = true;
+			}
+			else {
+				pre_buf = 0; 
+			}
+		}
+	} else pre_buf = 0;
+}
 
 static int mdss_mdp_src_addr_setup(struct mdss_mdp_pipe *pipe,
 				   struct mdss_mdp_data *src_data)
@@ -1719,11 +1747,13 @@ static int mdss_mdp_src_addr_setup(struct mdss_mdp_pipe *pipe,
 	mdss_mdp_pipe_write(pipe, MDSS_MDP_REG_SSPP_SRC1_ADDR, data.p[1].addr);
 	mdss_mdp_pipe_write(pipe, MDSS_MDP_REG_SSPP_SRC2_ADDR, data.p[2].addr);
 	mdss_mdp_pipe_write(pipe, MDSS_MDP_REG_SSPP_SRC3_ADDR, data.p[3].addr);
-
+	MDSS_XLOG(pipe->num, data.p[0].addr, data.p[1].addr, data.p[2].addr, data.p[3].addr);
 	/* Flush Sel register only exists in mpq */
 	if ((mdata->mdp_rev == MDSS_MDP_HW_REV_200) &&
 		(pipe->flags & MDP_VPU_PIPE))
 		mdss_mdp_pipe_write(pipe, MDSS_MDP_REG_VIG_FLUSH_SEL, 0);
+	/* check First frame of Secure display (RGB and FB0) to avoid to be flushed (W/A of distorted image on SSPAY) */
+	mdss_validate_secure_layer(pipe,data.p[0].addr);
 
 	return 0;
 }
@@ -1823,7 +1853,7 @@ int mdss_mdp_pipe_queue_data(struct mdss_mdp_pipe *pipe,
 	params_changed = (pipe->params_changed) ||
 		((pipe->type == MDSS_MDP_PIPE_TYPE_DMA) &&
 		 (pipe->mixer_left->type == MDSS_MDP_MIXER_TYPE_WRITEBACK) &&
-		 (ctl->mdata->mixer_switched)) || ctl->roi_changed;
+		 (ctl->mdata->mixer_switched)) || ctl->roi_changed ||(ctl->power_state==MDSS_PANEL_POWER_LP1);            //Temorary merge from Grace xiao13.li
 	if ((!(pipe->flags & MDP_VPU_PIPE) && (src_data == NULL)) ||
 	    (pipe->flags & MDP_SOLID_FILL)) {
 		pipe->params_changed = 0;

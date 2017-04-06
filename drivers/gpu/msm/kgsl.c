@@ -29,6 +29,7 @@
 #include <linux/sort.h>
 #include <linux/security.h>
 #include <linux/compat.h>
+#include <linux/show_mem_notifier.h>
 
 #include "kgsl.h"
 #include "kgsl_debugfs.h"
@@ -4257,6 +4258,27 @@ void kgsl_device_platform_remove(struct kgsl_device *device)
 }
 EXPORT_SYMBOL(kgsl_device_platform_remove);
 
+static int kgsl_sharedmem_size_notifier(struct notifier_block *nb,
+					unsigned long is_simple, void *data)
+{
+	struct seq_file *s;
+
+	s = (struct seq_file *)data;
+	if (!is_simple)
+		return 0;
+	if (s != NULL)
+		seq_printf(s, "KgslSharedmem:  %8lu kB\n",
+			(unsigned long)(kgsl_driver.stats.page_alloc >> 10));
+	else
+		printk("KgslSharedmem:%lukB ",
+			(unsigned long)(kgsl_driver.stats.page_alloc >> 10));
+	return 0;
+}
+
+static struct notifier_block kgsl_sharedmem_size_nb = {
+	.notifier_call = kgsl_sharedmem_size_notifier,
+};
+
 static void kgsl_core_exit(void)
 {
 	kgsl_events_exit();
@@ -4283,6 +4305,7 @@ static void kgsl_core_exit(void)
 
 	kgsl_memfree_exit();
 	unregister_chrdev_region(kgsl_driver.major, KGSL_DEVICE_MAX);
+	show_mem_notifier_unregister(&kgsl_sharedmem_size_nb);
 }
 
 static int __init kgsl_core_init(void)
@@ -4356,6 +4379,8 @@ static int __init kgsl_core_init(void)
 		goto err;
 
 	kgsl_memfree_init();
+
+	show_mem_notifier_register(&kgsl_sharedmem_size_nb);
 
 	return 0;
 

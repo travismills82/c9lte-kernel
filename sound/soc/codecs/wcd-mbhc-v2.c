@@ -1191,8 +1191,7 @@ correct_plug_type:
 					mbhc->hs_detect_work_stop);
 			wcd_enable_curr_micbias(mbhc,
 						WCD_MBHC_EN_NONE);
-			if (mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic &&
-				mbhc->micbias_enable) {
+			if (mbhc->micbias_enable) {
 				mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic(
 					mbhc->codec, MIC_BIAS_2, false);
 				mbhc->micbias_enable = false;
@@ -1214,8 +1213,7 @@ correct_plug_type:
 					mbhc->hs_detect_work_stop);
 			wcd_enable_curr_micbias(mbhc,
 						WCD_MBHC_EN_NONE);
-			if (mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic &&
-				mbhc->micbias_enable) {
+			if (mbhc->micbias_enable) {
 				mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic(
 					mbhc->codec, MIC_BIAS_2, false);
 				mbhc->micbias_enable = false;

@@ -109,7 +109,7 @@ static ssize_t panel_debug_base_offset_read(struct file *file,
 	if (*ppos)
 		return 0;	/* the end */
 
-	len = snprintf(buf, sizeof(buf), "0x%02zx %zx\n", dbg->off, dbg->cnt);
+	len = snprintf(buf, sizeof(buf), "0x%02zx %zd\n", dbg->off, dbg->cnt);
 	if (len < 0 || len >= sizeof(buf))
 		return 0;
 
@@ -762,7 +762,7 @@ static ssize_t mdss_debug_perf_mode_write(struct file *file,
 	if (copy_from_user(buf, user_buf, count))
 		return -EFAULT;
 
-	buf[count] = 0;	/* end of string */
+	buf[count] = 0;		/* end of string */
 
 	if (sscanf(buf, "%d", &perf_mode) != 1)
 		return -EFAULT;
@@ -899,7 +899,7 @@ static ssize_t mdss_debug_perf_panic_write(struct file *file,
 	if (copy_from_user(buf, user_buf, count))
 		return -EFAULT;
 
-	buf[count] = 0;	/* end of string */
+	buf[count] = 0; 	/* end of string */
 
 	if (sscanf(buf, "%d", &disable_panic) != 1)
 		return -EFAULT;

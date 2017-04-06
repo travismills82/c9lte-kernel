@@ -117,6 +117,8 @@ s32 msm_iommu_pagetable_alloc(struct msm_iommu_pt *pt)
 	if (!pt->fl_table)
 		return -ENOMEM;
 
+	dmac_flush_range(pt->fl_table, pt->fl_table + NUM_PTE);
+
 	return 0;
 }
 
@@ -228,9 +230,12 @@ static u64 *make_next_level_table(s32 redirect, u64 *pte)
 		goto fail;
 	}
 
+	dmac_flush_range(next_level_table, next_level_table + NUM_PTE);
+
 	/* Leave APTable bits 0 to let next level decide access permissions */
 	*pte = (((phys_addr_t)__pa(next_level_table)) &
 			FLSL_BASE_MASK) | FLSL_TYPE_TABLE;
+
 fail:
 	return next_level_table;
 }
@@ -941,23 +946,21 @@ void msm_iommu_flush_pagetable(struct msm_iommu_pt *pt, unsigned long va,
 static phys_addr_t get_phys_from_va(unsigned long va, u64 *table, int level)
 {
 	u64 type;
-	u64 mask = 0;			/* For single mapping */
-	u64 section_mask = 0;		/* For section mapping */
+	u64 mask = 0;		/* For single mapping */
+	u64 section_mask = 0;	/* For section mapping */
 	u64 *pte;
 
 	if (level <= NUM_PT_LEVEL) {
 		switch (level) {
 		case 1:
 			pte = table + FL_OFFSET(va);
-			mask = ((IOMMU_MAX_VA_SZ - 1) &
-				~((SZ_1G * 512ULL) - 1));
+			mask = ((IOMMU_MAX_VA_SZ - 1) & ~((SZ_1G * 512ULL) - 1));
 			section_mask = mask;
 			break;
 		case 2:
 			pte = table + SL_OFFSET(va);
 			mask = FLSL_1G_BLOCK_MASK;
-			section_mask = ((IOMMU_MAX_VA_SZ - 1) &
-					~((SZ_1G * 16ULL) - 1));
+			section_mask = ((IOMMU_MAX_VA_SZ - 1) & ~((SZ_1G * 16ULL)- 1));
 			break;
 		case 3:
 			pte = table + TL_OFFSET(va);

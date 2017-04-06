@@ -444,7 +444,7 @@ ccid_bridge_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 	struct usb_descriptor_header *header;
 	int ret;
 	struct usb_device *udev = ccid->udev;
-	__u8 intf = ccid->intf->cur_altsetting->desc.bInterfaceNumber;
+	__u8 intf;
 	__u8 breq = 0;
 
 	if (!ccid->intf) {
@@ -452,6 +452,7 @@ ccid_bridge_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 		return -ENODEV;
 	}
 
+	intf = ccid->intf->cur_altsetting->desc.bInterfaceNumber;
 	mutex_lock(&ccid->event_mutex);
 	switch (cmd) {
 	case USB_CCID_GET_CLASS_DESC:

@@ -1370,9 +1370,10 @@ static void qpnp_flash_led_work(struct work_struct *work)
 			}
 		} else {
 			dev_err(&led->spmi_dev->dev,
-					"led->battery_psy is NULL\n");
+				        "led->battery_psy is NULL\n");
 			goto exit_flash_led_work;
-		}
+		}	
+			
 
 		if (led->pdata->power_detect_en ||
 					led->pdata->die_current_derate_en) {

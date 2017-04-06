@@ -149,6 +149,8 @@ static int mdss_mdp_writeback_addr_setup(struct mdss_mdp_writeback_ctx *ctx,
 	mdp_wb_write(ctx, MDSS_MDP_REG_WB_DST2_ADDR, data.p[2].addr);
 	mdp_wb_write(ctx, MDSS_MDP_REG_WB_DST3_ADDR, data.p[3].addr);
 
+	MDSS_XLOG(ctx->wb_num, data.p[0].addr, data.p[1].addr, data.p[2].addr, data.p[3].addr);
+
 	return 0;
 }
 
@@ -392,6 +394,7 @@ static int mdss_mdp_wb_remove_vsync_handler(struct mdss_mdp_ctl *ctl,
 	struct mdss_mdp_writeback_ctx *ctx;
 	unsigned long flags;
 	int ret = 0;
+
 	if (!handle || !(handle->vsync_handler)) {
 		ret = -EINVAL;
 		goto exit;
@@ -432,6 +435,7 @@ static int mdss_mdp_writeback_stop(struct mdss_mdp_ctl *ctl,
 
 		ctl->priv_data = NULL;
 		ctx->ref_cnt--;
+		MDSS_XLOG(ctx->wb_num, ctx->type, ctx->xin_id, ctx->intf_num);
 	}
 
 	return 0;
@@ -601,6 +605,11 @@ static int mdss_mdp_wb_wait4comp(struct mdss_mdp_ctl *ctl, void *arg)
 			rc = -ENODEV;
 			WARN(1, "writeback kickoff timed out (%d) ctl=%d\n",
 							rc, ctl->num);
+
+			MDSS_XLOG_TOUT_HANDLER("mdp", 
+				 "dbg_bus", "vbif_dbg_bus", "panic"); 
+
+			BUG_ON(1); 
 		}
 	} else {
 		rc = 0;
@@ -701,6 +710,7 @@ static int mdss_mdp_writeback_display(struct mdss_mdp_ctl *ctl, void *arg)
 	flush_bits |= BIT(16); /* WB */
 	mdp_wb_write(ctx, MDSS_MDP_REG_WB_DST_ADDR_SW_STATUS, ctl->is_secure);
 	mdss_mdp_ctl_write(ctl, MDSS_MDP_REG_CTL_FLUSH, flush_bits);
+	MDSS_XLOG(MDSS_MDP_REG_CTL_FLUSH, ctl->flush_bits, ctl->num);
 
 	INIT_COMPLETION(ctx->wb_comp);
 	mdss_mdp_irq_enable(ctx->intr_type, ctx->intf_num);

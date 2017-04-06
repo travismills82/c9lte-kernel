@@ -2119,13 +2119,14 @@ unsigned int snd_soc_read(struct snd_soc_codec *codec, unsigned int reg)
 {
 	unsigned int ret;
 
-	if (codec->read) {
+        if (codec->read) {
 		ret = codec->read(codec, reg);
 		dev_dbg(codec->dev, "read %x => %x\n", reg, ret);
 		trace_snd_soc_reg_read(codec, reg, ret);
-	} else {
+        }
+        else
 		ret = -EIO;
-	}
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(snd_soc_read);
@@ -2137,9 +2138,9 @@ unsigned int snd_soc_write(struct snd_soc_codec *codec,
 		dev_dbg(codec->dev, "write %x = %x\n", reg, val);
 		trace_snd_soc_reg_write(codec, reg, val);
 		return codec->write(codec, reg, val);
-	} else {
+        }
+	else
 		return -EIO;
-	}
 }
 EXPORT_SYMBOL_GPL(snd_soc_write);
 
@@ -2332,6 +2333,22 @@ static int snd_soc_add_controls(struct snd_card *card, struct device *dev,
 
 	return 0;
 }
+
+struct snd_kcontrol *snd_soc_card_get_kcontrol(struct snd_soc_card *soc_card,
+					       const char *name)
+{
+	struct snd_card *card = soc_card->snd_card;
+	struct snd_kcontrol *kctl;
+
+	if (unlikely(!name))
+		return NULL;
+
+	list_for_each_entry(kctl, &card->controls, list)
+		if (!strncmp(kctl->id.name, name, sizeof(kctl->id.name)))
+			return kctl;
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(snd_soc_card_get_kcontrol);
 
 /**
  * snd_soc_add_codec_controls - add an array of controls to a codec.

@@ -349,6 +349,8 @@ static int __ref _cpu_down(unsigned int cpu, int tasks_frozen)
 	while (!idle_cpu(cpu))
 		cpu_relax();
 
+	save_pcpu_tick(cpu);
+
 	/* This actually kills the CPU. */
 	__cpu_die(cpu);
 
@@ -423,6 +425,8 @@ static int __cpuinit _cpu_up(unsigned int cpu, int tasks_frozen)
 	if (ret != 0)
 		goto out_notify;
 	BUG_ON(!cpu_online(cpu));
+
+	restore_pcpu_tick(cpu);
 
 	/* Wake the per cpu threads */
 	smpboot_unpark_threads(cpu);

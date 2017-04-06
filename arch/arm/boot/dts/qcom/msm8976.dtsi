@@ -41,7 +41,7 @@
 		i2c2  = &i2c_2;
 		i2c4  = &i2c_4;
 		i2c6  = &i2c_6;
-		i2c8  = &i2c_8;
+		//i2c8  = &i2c_8;
 		qup10 = &test_pacman;
 	};
 
@@ -1217,8 +1217,8 @@
 			<&dma_blsp2 7 32 0x20000020 0x20>;
 		dma-names = "tx", "rx";
 	};
-
-	i2c_8: i2c@7af8000 { /* BLSP2 QUP4 */
+/*
+	i2c_8: i2c@7af8000 {  BLSP2 QUP4 
                 compatible = "qcom,i2c-msm-v2";
                 #address-cells = <1>;
                 #size-cells = <0>;
@@ -1241,7 +1241,7 @@
                         <&dma_blsp2 11 32 0x20000020 0x20>;
                 dma-names = "tx", "rx";
         };
-
+*/
 
 	usb_otg: usb@78db000 {
 		compatible = "qcom,hsusb-otg";
@@ -1880,7 +1880,6 @@
 		qcom,max-hw-load = <979200>; /* 3840 x 2176 @ 30 fps */
 		qcom,dcvs-min-load = <734400>; /* 1920 x 1088 @ 90fps */
 		qcom,dcvs-min-mbperframe = <32400>; /* 3840 x 2160 */
-                qcom,pm-qos-latency-us = <332>;
 
 		qcom,load-freq-tbl =
 			<979200 466000000 0x55555555>, /* TURBO, UHD30E   */

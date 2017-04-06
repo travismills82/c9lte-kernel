@@ -113,8 +113,13 @@ static struct ion_heap_desc ion_heap_meta[] = {
 #endif
 
 static int msm_ion_lowmem_notifier(struct notifier_block *nb,
-					unsigned long action, void *data)
+					unsigned long is_simple, void *data)
 {
+	if (is_simple) {
+		show_ion_usage_simple(idev, is_simple, (struct seq_file *)data);
+		return 0;
+	}
+
 	show_ion_usage(idev);
 	return 0;
 }
@@ -724,7 +729,7 @@ long msm_ion_custom_ioctl(struct ion_client *client,
 		} else {
 			handle = ion_import_dma_buf(client, data.flush_data.fd);
 			if (IS_ERR(handle)) {
-				pr_info("%s: Could not import handle: %pK\n",
+				pr_info("%s: Could not import handle: %p\n",
 					__func__, handle);
 				return -EINVAL;
 			}
@@ -737,8 +742,8 @@ long msm_ion_custom_ioctl(struct ion_client *client,
 			+ data.flush_data.length;
 
 		if (start && check_vaddr_bounds(start, end)) {
-			pr_err("%s: virtual address %pK is out of bounds\n",
-			       __func__, data.flush_data.vaddr);
+			pr_err("%s: virtual address %p is out of bounds\n",
+				__func__, data.flush_data.vaddr);
 			ret = -EINVAL;
 		} else {
 			ret = ion_do_cache_op(
@@ -1069,6 +1074,7 @@ static int msm_ion_remove(struct platform_device *pdev)
 
 	ion_device_destroy(idev);
 	kfree(heaps);
+	show_mem_notifier_unregister(&msm_ion_nb);
 	return 0;
 }
 

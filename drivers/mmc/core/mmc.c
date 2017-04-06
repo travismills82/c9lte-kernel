@@ -287,6 +287,37 @@ static void mmc_select_card_type(struct mmc_card *card)
 	card->ext_csd.card_type = card_type;
 }
 
+/* eMMC 5.0 or later only */
+/*
+ * mmc_merge_ext_csd - merge some ext_csd field to a variable.
+ * @ext_csd : pointer of ext_csd.(1 Byte/field)
+ * @continuous : if you want to merge continuous field, set true.
+ * @count : a number of ext_csd field to merge(=< 8)
+ * @args : list of ext_csd index or first index.
+ */
+static unsigned long long mmc_merge_ext_csd(u8 *ext_csd, bool continuous, int count, ...)
+{
+	unsigned long long merge_ext_csd = 0;
+	va_list args;
+	int i = 0;
+	int index;
+
+	va_start(args, count);
+
+	index = va_arg(args, int);
+	for (i = 0; i < count; i++) {
+		if (continuous) {
+			merge_ext_csd = merge_ext_csd << 8 | ext_csd[index + count - 1 - i];
+		} else {
+			merge_ext_csd = merge_ext_csd << 8 | ext_csd[index];
+			index = va_arg(args, int);
+		}
+	}
+	va_end(args);
+
+	return merge_ext_csd;
+}
+
 /*
  * Decode extended CSD.
  */
@@ -626,6 +657,17 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		card->ext_csd.enhanced_rpmb_supported =
 			(card->ext_csd.rel_param &
 			 EXT_CSD_WR_REL_PARAM_EN_RPMB_REL_WR);
+		card->ext_csd.smart_info = mmc_merge_ext_csd(ext_csd, false, 8,
+				EXT_CSD_DEVICE_LIFE_TIME_EST_TYPE_B,
+				EXT_CSD_DEVICE_LIFE_TIME_EST_TYPE_A,
+				EXT_CSD_PRE_EOL_INFO,
+				EXT_CSD_OPTIMAL_TRIM_UNIT_SIZE,
+				EXT_CSD_DEVICE_VERSION + 1,
+				EXT_CSD_DEVICE_VERSION,
+				EXT_CSD_HC_ERASE_GRP_SIZE,
+				EXT_CSD_HC_WP_GRP_SIZE);
+		card->ext_csd.fwdate = mmc_merge_ext_csd(ext_csd, true, 8,
+				EXT_CSD_FW_VERSION);
 	} else {
 		card->ext_csd.cmdq_support = 0;
 		card->ext_csd.cmdq_depth = 0;
@@ -720,6 +762,25 @@ MMC_DEV_ATTR(raw_rpmb_size_mult, "%#x\n", card->ext_csd.raw_rpmb_size_mult);
 MMC_DEV_ATTR(enhanced_rpmb_supported, "%#x\n",
 		card->ext_csd.enhanced_rpmb_supported);
 MMC_DEV_ATTR(rel_sectors, "%#x\n", card->ext_csd.rel_sectors);
+MMC_DEV_ATTR(smart, "0x%016llx\n", card->ext_csd.smart_info);
+MMC_DEV_ATTR(fwdate, "0x%016llx\n", card->ext_csd.fwdate);
+MMC_DEV_ATTR(hpi_support, "%d\n", card->ext_csd.hpi);
+MMC_DEV_ATTR(hpi_enable, "%d\n", card->ext_csd.hpi_en);
+MMC_DEV_ATTR(hpi_command, "%d\n", card->ext_csd.hpi_cmd);
+MMC_DEV_ATTR(bkops_support, "%d\n", card->ext_csd.bkops);
+MMC_DEV_ATTR(bkops_enable, "%d\n", card->ext_csd.bkops_en);
+MMC_DEV_ATTR(caps, "0x%08x\n", (unsigned int)(card->host->caps));
+MMC_DEV_ATTR(caps2, "0x%08x\n", card->host->caps2);
+MMC_DEV_ATTR(erase_type, "MMC_CAP_ERASE %s, type %s, SECURE %s, Sanitize %s\n",
+		card->host->caps & MMC_CAP_ERASE ? "enabled" : "disabled",
+		mmc_can_discard(card) ? "DISCARD" :
+		(mmc_can_trim(card) ? "TRIM" : "NORMAL"),
+		(!(card->quirks & MMC_QUIRK_SEC_ERASE_TRIM_BROKEN) && 
+		 mmc_can_secure_erase_trim(card)) ? "supportable" : "disabled",
+		mmc_can_sanitize(card) ? "enabled" : "disabled");
+MMC_DEV_ATTR(packed_cmd, "packed_cmd %s / %s\n",
+		card->host->caps2 & MMC_CAP2_PACKED_WR ? "WR enabled" : "WR disabled",
+		card->host->caps2 & MMC_CAP2_PACKED_RD ? "RD enabled" : "RD disabled");
 
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
@@ -739,6 +800,17 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_raw_rpmb_size_mult.attr,
 	&dev_attr_enhanced_rpmb_supported.attr,
 	&dev_attr_rel_sectors.attr,
+	&dev_attr_smart.attr,
+	&dev_attr_fwdate.attr,
+	&dev_attr_hpi_support.attr,
+	&dev_attr_hpi_enable.attr,
+	&dev_attr_hpi_command.attr,
+	&dev_attr_bkops_support.attr,
+	&dev_attr_bkops_enable.attr,
+	&dev_attr_caps.attr,
+	&dev_attr_caps2.attr,
+	&dev_attr_erase_type.attr,
+	&dev_attr_packed_cmd.attr,
 	NULL,
 };
 
@@ -1878,29 +1950,6 @@ reinit:
 		}
 	}
 
-	/*
-	 * Start auto bkops, if supported.
-	 *
-	 * Note: This leaves the possibility of having both manual and
-	 * auto bkops running in parallel. The runtime implementation
-	 * will allow this, but ignore bkops exceptions on the premises
-	 * that auto bkops will eventually kick in and the device will
-	 * handle bkops without START_BKOPS from the host.
-	 */
-	if (mmc_card_support_auto_bkops(card)) {
-		/*
-		 * Ignore the return value of setting auto bkops.
-		 * If it failed, will run in backward compatible mode.
-		 */
-		err = mmc_set_auto_bkops(card, true);
-		if (err)
-			pr_err("%s: %s: Failed to enable auto-bkops: err: %d\n",
-			       mmc_hostname(card->host), __func__, err);
-		else
-			printk_once("%s: %s: Enabled auto-bkops on device\n",
-				    mmc_hostname(card->host), __func__);
-	}
-
 	if (card->ext_csd.cmdq_support && (card->host->caps2 &
 					   MMC_CAP2_CMD_QUEUE)) {
 		err = mmc_select_cmdq(card);
@@ -2053,16 +2102,8 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 	 * Disable clock scaling before suspend and enable it after resume so
 	 * as to avoid clock scaling decisions kicking in during this window.
 	 */
-	mmc_disable_clk_scaling(host);
-
-	if (mmc_card_doing_auto_bkops(host->card)) {
-		err = mmc_set_auto_bkops(host->card, false);
-		if (err) {
-			pr_err("%s: %s: failed to stop auto-bkops: %d\n",
-			       mmc_hostname(host), __func__, err);
-			goto out;
-		}
-	}
+	if (mmc_can_scale_clk(host))
+		mmc_disable_clk_scaling(host);
 
 	err = mmc_flush_cache(host->card);
 	if (err)
@@ -2087,7 +2128,10 @@ out:
  */
 static int mmc_suspend(struct mmc_host *host)
 {
-	return _mmc_suspend(host, true);
+	if (host->pm_caps & MMC_PM_SKIP_RESUME_INIT)
+		return 0;
+	else
+		return _mmc_suspend(host, true);
 }
 
 /*
@@ -2100,28 +2144,60 @@ static int mmc_resume(struct mmc_host *host)
 {
 	int err;
 	int retries;
+	u32 status;
 
 	BUG_ON(!host);
 	BUG_ON(!host->card);
 
-	mmc_claim_host(host);
-	retries = 3;
-	while (retries) {
-		err = mmc_init_card(host, host->ocr, host->card);
+	if (host->pm_caps & MMC_PM_SKIP_RESUME_INIT) {
+		mmc_claim_host(host);
+		err = mmc_send_status(host->card, &status);
+		mmc_release_host(host);
 
-		if (err) {
-			pr_err("%s: MMC card re-init failed rc = %d (retries = %d)\n",
-			       mmc_hostname(host), err, retries);
-			retries--;
-			mmc_power_off(host);
-			usleep_range(5000, 5500);
-			mmc_power_up(host);
-			mmc_select_voltage(host, host->ocr);
-			continue;
+		if (!err && (R1_CURRENT_STATE(status) == R1_STATE_TRAN)) {
+			return 0;
+		} else {
+			pr_err("%s: status : 0x%x, err : %d doing resume\n",
+					mmc_hostname(host), status, err);
+			mmc_claim_host(host);
+			retries = 3;
+			while (retries) {
+				err = mmc_init_card(host, host->ocr, host->card);
+
+				if (err) {
+					pr_err("%s: MMC card re-init failed rc = %d (retries = %d)\n",
+					       mmc_hostname(host), err, retries);
+					retries--;
+					mmc_power_off(host);
+					usleep_range(5000, 5500);
+					mmc_power_up(host);
+					mmc_select_voltage(host, host->ocr);
+					continue;
+				}
+				break;
+			}
+			mmc_release_host(host);
 		}
-		break;
+	} else {
+		mmc_claim_host(host);
+		retries = 3;
+		while (retries) {
+			err = mmc_init_card(host, host->ocr, host->card);
+
+			if (err) {
+				pr_err("%s: MMC card re-init failed rc = %d (retries = %d)\n",
+				       mmc_hostname(host), err, retries);
+				retries--;
+				mmc_power_off(host);
+				usleep_range(5000, 5500);
+				mmc_power_up(host);
+				mmc_select_voltage(host, host->ocr);
+				continue;
+			}
+			break;
+		}
+		mmc_release_host(host);
 	}
-	mmc_release_host(host);
 
 	/*
 	 * We have done full initialization of the card,

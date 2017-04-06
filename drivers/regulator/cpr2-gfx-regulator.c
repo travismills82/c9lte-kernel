@@ -2472,7 +2472,8 @@ static int cpr_adjust_target_quotients(struct cpr2_gfx_regulator *cpr_vreg)
 {
 	struct device_node *of_node = cpr_vreg->dev->of_node;
 	int i, j, len, size, sign, steps, voltage_adjust, rc;
-	u32 *fuse_sel, *tmp, *ro_scale;
+	u32 *fuse_sel, *ro_scale;
+	u32 *tmp = NULL;
 	char *prop_str;
 	u64 efuse_bits;
 	u32 step_size_uv;
@@ -2588,7 +2589,8 @@ static int cpr_adjust_target_quotients(struct cpr2_gfx_regulator *cpr_vreg)
 
 _exit:
 	kfree(ro_scale);
-	kfree(tmp);
+	if (tmp != NULL)
+		kfree(tmp);
 	return rc;
 }
 

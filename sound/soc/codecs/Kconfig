@@ -83,6 +83,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM5110 if MFD_WM5110
 	select SND_SOC_WM8350 if MFD_WM8350
 	select SND_SOC_WM8400 if MFD_WM8400
+	select SND_SOC_CS47L15 if SPI
 	select SND_SOC_WM8510 if SND_SOC_I2C_AND_SPI
 	select SND_SOC_WM8523 if I2C
 	select SND_SOC_WM8580 if I2C
@@ -143,6 +144,7 @@ config SND_SOC_ARIZONA
 	default y if SND_SOC_WM5110=y
 	default m if SND_SOC_WM5102=m
 	default m if SND_SOC_WM5110=m
+	default y if SND_SOC_CS47L15=y
 
 config SND_SOC_WM_HUBS
 	tristate
@@ -152,6 +154,7 @@ config SND_SOC_WM_HUBS
 config SND_SOC_WM_ADSP
 	tristate
 	default y if SND_SOC_WM5102=y
+	default y if SND_SOC_CS47L15=y
 	default y if SND_SOC_WM2200=y
 	default m if SND_SOC_WM5102=m
 	default m if SND_SOC_WM2200=m
@@ -222,6 +225,9 @@ config SND_SOC_CS42L52
 
 config SND_SOC_CS42L73
 	tristate
+config SND_SOC_CS47L15
+	tristate "cirrus cs47l15"
+	
 
 # Cirrus Logic CS4270 Codec
 config SND_SOC_CS4270
@@ -293,6 +299,9 @@ config SND_SOC_PCM3008
 
 config SND_SOC_RT5631
 	tristate
+
+config SND_SOC_RT5659
+     tristate
 
 #Freescale sgtl5000 codec
 config SND_SOC_SGTL5000
@@ -578,3 +587,9 @@ config SND_SOC_MSM_HDMI_CODEC_RX
 	help
 	HDMI audio drivers should be built only if the platform
         supports hdmi panel.
+
+config SW_100K_TO_GND
+	bool "Detect FM radio cable"
+	help
+	use 100K ohm in pmic to detect specific cable
+

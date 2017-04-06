@@ -82,7 +82,7 @@ struct msm_scm_paddr_list {
 struct msm_scm_mapping_info {
 	unsigned int id;
 	unsigned int ctx_id;
-	unsigned int va;
+	unsigned long va;
 	unsigned int size;
 };
 

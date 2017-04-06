@@ -29,6 +29,10 @@ struct msm_eeprom_ctrl_t;
 
 #define PROPERTY_MAXSIZE 32
 
+/* Module ID : 0x00A8~0x00B7(16Byte) for FROM, EEPROM (Don't support OTP)*/
+#define FROM_MODULE_ID_ADDR           0x00A8
+#define FROM_MODULE_ID_SIZE           10
+
 struct msm_eeprom_ctrl_t {
 	struct platform_device *pdev;
 	struct mutex *eeprom_mutex;
@@ -47,5 +51,14 @@ struct msm_eeprom_ctrl_t {
 	struct msm_eeprom_memory_block_t cal_data;
 	uint8_t is_supported;
 };
+
+static int msm_eeprom_cmm_dts(struct msm_eeprom_board_info *eb_info,
+	struct device_node *of_node);
+
+static int msm_eeprom_get_dt_data(struct msm_eeprom_ctrl_t *e_ctrl);
+#ifdef CONFIG_COMPAT
+static long msm_eeprom_subdev_fops_ioctl32(struct file *file, unsigned int cmd,
+	unsigned long arg);
+#endif
 
 #endif

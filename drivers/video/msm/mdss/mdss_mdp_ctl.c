@@ -3647,7 +3647,7 @@ int mdss_mdp_mixer_pipe_update(struct mdss_mdp_pipe *pipe,
 
 	pr_debug("pnum=%x mixer=%d stage=%d\n", pipe->num, mixer->num,
 			pipe->mixer_stage);
-
+	MDSS_XLOG(pipe->num, pipe->mixer_stage, mixer->num);
 	mutex_lock(&ctl->flush_lock);
 
 	if (params_changed) {
@@ -3747,7 +3747,7 @@ int mdss_mdp_mixer_pipe_unstage(struct mdss_mdp_pipe *pipe,
 		pr_debug("unstage p%d from %s side of stage=%d lm=%d ndx=%d\n",
 			pipe->num, pipe->is_right_blend ? "right" : "left",
 			pipe->mixer_stage, mixer->num, index);
-
+		MDSS_XLOG(pipe->num, pipe->mixer_stage, mixer->num);
 		mixer->params_changed++;
 		mixer->stage_pipe[index] = NULL;
 	}
@@ -4171,7 +4171,8 @@ int mdss_mdp_display_commit(struct mdss_mdp_ctl *ctl, void *arg,
 	 * that are valid and driver needs to ensure it. This function
 	 * would set the mixer state to border when there is timeout.
 	 */
-	if (ret == NOTIFY_BAD) {
+	/* check First frame of Secure display (RGB and FB0) to avoid to be flushed (W/A of distorted image on SSPAY) */
+	if (ret == NOTIFY_BAD||((ctl->mfd)&&ctl->mfd->sd_skiplayer)) {
 		mdss_mdp_force_border_color(ctl);
 		ctl_flush_bits |= (ctl->flush_bits | BIT(17));
 		if (sctl && (!ctl->split_flush_en))
@@ -4283,6 +4284,7 @@ int mdss_mdp_display_commit(struct mdss_mdp_ctl *ctl, void *arg,
 
 	ATRACE_BEGIN("flush_kickoff");
 	mdss_mdp_ctl_write(ctl, MDSS_MDP_REG_CTL_FLUSH, ctl_flush_bits);
+	MDSS_XLOG(MDSS_MDP_REG_CTL_FLUSH, ctl->flush_bits,ctl_flush_bits, ctl->num);
 	if (sctl && sctl_flush_bits) {
 		mdss_mdp_ctl_write(sctl, MDSS_MDP_REG_CTL_FLUSH,
 			sctl_flush_bits);

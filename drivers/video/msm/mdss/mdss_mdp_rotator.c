@@ -605,6 +605,8 @@ static int mdss_mdp_rotator_queue_sub(struct mdss_mdp_rotator_session *rot,
 		}
 	}
 
+	MDSS_XLOG(rot_pipe->pipe->num, rot_pipe->pipe->ndx, rot_pipe->pipe->type);
+
 	ret = mdss_mdp_pipe_queue_data(pipe, src_data);
 	if (ret) {
 		pr_err("unable to queue rot data\n");
@@ -1086,8 +1088,10 @@ int mdss_mdp_rotator_unset(int ndx)
 	int ret = 0;
 
 	rot = mdss_mdp_rot_mgr_get_session(ndx);
-	if (rot)
+	if (rot){
+		MDSS_XLOG(ndx);
 		ret = mdss_mdp_rotator_release(rot);
+		}
 
 	return ret;
 }
