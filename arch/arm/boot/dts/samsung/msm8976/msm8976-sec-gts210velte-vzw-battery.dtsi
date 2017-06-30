@@ -40,7 +40,7 @@
 
 		battery,adc_check_count = <5>;
 
-		battery,cable_check_type = <5>; /* SEC_BATTERY_CABLE_CHECK_NOUSBCHARGE | SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_check_type = <6>; /* SEC_BATTERY_CABLE_CHECK_NOINCOMPATIBLECHARGE | SEC_BATTERY_CABLE_CHECK_PSY */
 		battery,cable_source_type = <3>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
 		battery,event_waiting_time = <600>;
 		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
@@ -71,9 +71,9 @@
 		battery,temp_low_recovery_normal = <0>;
 		battery,temp_highlimit_threshold_lpm = <800>;
 		battery,temp_highlimit_recovery_lpm = <750>;
-		battery,temp_high_threshold_lpm = <590>;
-		battery,temp_high_recovery_lpm = <520>;
-		battery,temp_low_threshold_lpm = <(-30)>;
+		battery,temp_high_threshold_lpm = <550>;
+		battery,temp_high_recovery_lpm = <500>;
+		battery,temp_low_threshold_lpm = <(-50)>;
 		battery,temp_low_recovery_lpm = <0>;
 		battery,full_check_type = <2>; /* SEC_BATTERY_FULLCHARGED_FG_CURRENT */
 		battery,full_check_type_2nd = <2>; /* SEC_BATTERY_FULLCHARGED_FG_CURRENT */

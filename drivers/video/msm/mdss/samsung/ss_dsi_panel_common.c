@@ -4233,7 +4233,7 @@ static void load_tuning_file(struct device *dev, char *filename)
 	sending_tune_cmd(dev, dp, l);
 
 	kfree(dp);
-
+	
 	return;
 err:
 	set_fs(fs);
