@@ -497,6 +497,7 @@ static int sdcardfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	struct dentry *trap = NULL;
 	struct dentry *new_parent = NULL;
 	struct path lower_old_path, lower_new_path;
+	struct sdcardfs_inode_info *new_dir_info = SDCARDFS_I(new_dir);
 	const struct cred *saved_cred = NULL;
 
 	if(!check_caller_access_to_name(old_dir, old_dentry->d_name.name) ||
@@ -561,6 +562,14 @@ static int sdcardfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 			}
 			dput(new_parent);
 		}
+	}
+	if (!uid_eq(old_dir->i_uid, new_dir->i_uid) ||
+		 new_dir_info->perm == PERM_ANDROID_DATA ||
+		 new_dir_info->perm == PERM_ANDROID_OBB ||
+		 new_dir_info->perm == PERM_ANDROID_MEDIA) {
+		spin_lock(&old_dentry->d_lock);
+		old_dentry->d_flags |= DCACHE_WILL_INVALIDATE;
+		spin_unlock(&old_dentry->d_lock);
 	}
 
 out_err:
@@ -782,21 +791,10 @@ static int sdcardfs_setattr(struct dentry *dentry, struct iattr *ia)
 	 * the lower level.
 	 */
 	if (ia->ia_valid & ATTR_SIZE) {
-		loff_t oldsize;
 		err = inode_newsize_ok(inode, ia->ia_size);
 		if (err)
 			goto out;
-		/* This code from truncate_setsize(). We need to add spin_lock
-		 * to avoid race condition with fsstack_copy_inode_size() */
-		oldsize = i_size_read(inode);
-		if (sizeof(ia->ia_size) > sizeof(long))
-			spin_lock(&inode->i_lock);
-		i_size_write(inode, ia->ia_size);
-		if (sizeof(ia->ia_size) > sizeof(long))
-			spin_unlock(&inode->i_lock);
-		if (ia->ia_size > oldsize)
-			pagecache_isize_extended(inode, oldsize, ia->ia_size);
-		truncate_pagecache(inode, oldsize, ia->ia_size);
+		truncate_setsize(inode, ia->ia_size);
 	}
 
 	/*

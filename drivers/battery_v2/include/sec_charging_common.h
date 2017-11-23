@@ -566,19 +566,27 @@ struct sec_battery_platform_data {
 	/* battery swelling */
 	int swelling_high_temp_block;
 	int swelling_high_temp_recov;
-	int swelling_low_temp_block;
-	int swelling_low_temp_recov;
-	int swelling_low_temp_additional;
+	int swelling_low_temp_block_1st;
+	int swelling_low_temp_recov_1st;
+	int swelling_low_temp_block_2nd;
+	int swelling_low_temp_recov_2nd;
 	unsigned int swelling_low_temp_current;
-	unsigned int swelling_low_temp_additional_current;
 	unsigned int swelling_low_temp_topoff;
 	unsigned int swelling_high_temp_current;
 	unsigned int swelling_high_temp_topoff;
+	unsigned int swelling_wc_high_temp_current;
+	unsigned int swelling_wc_low_temp_current;
+	
 	unsigned int swelling_normal_float_voltage;
 	unsigned int swelling_drop_float_voltage;
 	unsigned int swelling_high_rechg_voltage;
 	unsigned int swelling_low_rechg_voltage;
-	unsigned int swelling_offset_voltage;
+	unsigned int swelling_drop_voltage_condition;
+
+	unsigned int wa_volt_recov;
+	unsigned int wa_volt_thr;
+	unsigned int wa_float_voltage;
+
 
 #if defined(CONFIG_CALC_TIME_TO_FULL)
 	unsigned int ttf_hv_12v_charge_current;
@@ -787,6 +795,7 @@ struct sec_battery_platform_data {
 	/* float voltage (mV) */
 #ifdef CONFIG_OF
 	unsigned int chg_float_voltage;
+    unsigned int chg_float_voltage_conv;
 #else
 	int chg_float_voltage;
 #endif
@@ -819,6 +828,10 @@ struct sec_battery_platform_data {
 	sec_charger_functions_t chg_functions_setting;
 
 	bool fake_capacity;
+
+	unsigned int expired_time;
+	unsigned int recharging_expired_time;
+	int standard_curr;
 
 	/* ADC setting */
 	unsigned int adc_check_count;

@@ -70,6 +70,7 @@ static unsigned char low_powermode_current      = 0x05;
 static unsigned char br_ratio_r = 100;
 static unsigned char br_ratio_g = 100;
 static unsigned char br_ratio_b = 100;
+static unsigned char br_ratio_b_low = 100;
 static int gpio_vdd = -1;
 
 //extern unsigned int lcdtype;
@@ -435,7 +436,10 @@ static unsigned char calc_led_current_from_brightness(struct sm5705_rgb *sm5705_
         cur_value = (cur_value * br_ratio_g) / 100;
         break;
     case LED_B:
-        cur_value = (cur_value * br_ratio_b) / 100;
+        if(sm5705_rgb->en_lowpower_mode)
+            cur_value = (cur_value * br_ratio_b_low) / 100;
+        else
+            cur_value = (cur_value * br_ratio_b) / 100;
         break;
     }
     if (!cur_value) { cur_value = 1; }
@@ -516,7 +520,10 @@ static ssize_t store_sm5705_rgb_pattern(struct device *dev, struct device_attrib
 		break;
     case MISSED_NOTI:
         /* LED_B slope mode ON (500ms to 5000ms) */
-        led_current = led_current * br_ratio_b / 100;
+        if(sm5705_rgb->en_lowpower_mode)
+            led_current = led_current * br_ratio_b_low / 100;
+        else
+            led_current = led_current * br_ratio_b / 100;
         sm5705_rgb_set_LEDx_slopeduty(sm5705_rgb, LED_B, 0xF, 0xF, 0x0);
         sm5705_rgb_set_LEDx_slopemode(sm5705_rgb, LED_B, 0, 500, 5000, 4, 4);
         sm5705_rgb_set_LEDx_current(sm5705_rgb, LED_B, led_current);
@@ -544,7 +551,10 @@ static ssize_t store_sm5705_rgb_pattern(struct device *dev, struct device_attrib
         sm5705_rgb_set_LEDx_current(sm5705_rgb, LED_G, led_current);
         sm5705_rgb_set_LEDx_slopeduty(sm5705_rgb, LED_B, 0xF, 0xE, 0xC);
         sm5705_rgb_set_LEDx_slopemode(sm5705_rgb, LED_B, 0, 1000, 1000, 28, 28);
-        led_current = led_current * br_ratio_b / br_ratio_g;
+        if(sm5705_rgb->en_lowpower_mode)
+            led_current = led_current * br_ratio_b_low / br_ratio_g;
+        else
+            led_current = led_current * br_ratio_b / br_ratio_g;
         sm5705_rgb_set_LEDx_current(sm5705_rgb, LED_B, led_current);
 
         sm5705_rgb_set_LEDx_enable(sm5705_rgb, LED_G, 1, 1);
@@ -846,6 +856,16 @@ static int sm5705_rgb_parse_dt(struct device *dev, unsigned char octa_color, cha
 		br_ratio_b = (unsigned char)temp;
 	}
 
+    /* parsing dt:rgb-br_ratio_b_low */
+    make_property_string(property_str, "br_ratio_b_low", octa);
+    ret = of_property_read_u32(np, property_str, &temp);
+    if (IS_ERR_VALUE(ret)) {
+        dev_err(dev, "can't parsing [%s] in RGB dt\n", property_str);
+        br_ratio_b_low = br_ratio_b;
+    } else {
+        br_ratio_b_low = (unsigned char)temp;
+    }
+
     dev_info(dev, "SM5705 RGB-LED device configuration info\n");
     dev_info(dev, "- normal_powermode_current = %d\n", normal_powermode_current);
 
@@ -969,6 +989,7 @@ static int sm5705_rgb_probe(struct platform_device *pdev)
     dev_info(dev, "br_ratio_r: %d\n", (int)br_ratio_r);
     dev_info(dev, "br_ratio_g: %d\n", (int)br_ratio_g);
     dev_info(dev, "br_ratio_b: %d\n", (int)br_ratio_b);
+    dev_info(dev, "br_ratio_b_low: %d\n", (int)br_ratio_b_low);
 
 	return 0;
 

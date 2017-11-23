@@ -610,18 +610,21 @@
 		br_ratio_r = <27>;
 		br_ratio_g = <9>;
 		br_ratio_b = <80>;
+		br_ratio_b_low = <32>;
 
 		normal_powermode_current_bk = <255>;
 		low_powermode_current_bk = <51>;
 		br_ratio_r_bk = <25>;
 		br_ratio_g_bk = <9>;
 		br_ratio_b_bk = <80>;
+		br_ratio_b_low_bk = <32>;
 
 		normal_powermode_current_wt = <255>;
 		low_powermode_current_wt = <51>;
 		br_ratio_r_wt = <27>;
 		br_ratio_g_wt = <9>;
 		br_ratio_b_wt = <80>;
+		br_ratio_b_low_wt = <32>;
 	};
 	/delete-node/ spi@0x78B5000;
 

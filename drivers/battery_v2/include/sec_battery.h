@@ -55,6 +55,12 @@
 #define SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING		0x0010
 #define SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING	0x0020
 
+#define SEC_BAT_CURRENT_EVENT_LOW_TEMP			0x0080
+#define SEC_BAT_CURRENT_EVENT_USB_SUPER			0x0100
+#define SEC_BAT_CURRENT_EVENT_CHG_LIMIT			0x0200
+#define SEC_BAT_CURRENT_EVENT_CALL			0x0400
+#define SEC_BAT_CURRENT_EVENT_SLATE			0x0800
+
 #define SIOP_EVENT_NONE 	0x0000
 #define SIOP_EVENT_WPC_CALL 	0x0001
 
@@ -174,6 +180,9 @@ struct sec_battery_info {
 	int status;
 	int health;
 	bool present;
+	bool safety_timer_set;
+	bool lcd_status;
+	bool skip_swelling;
 
 	int voltage_now;		/* cell voltage (mV) */
 	int voltage_avg;		/* average voltage (mV) */
@@ -385,6 +394,11 @@ struct sec_battery_info {
 	struct wake_lock misc_event_wake_lock;
 	struct mutex batt_handlelock;
 	struct mutex current_eventlock;
+
+	bool stop_timer;
+	unsigned long prev_safety_time;
+	unsigned long expired_time;
+	unsigned long cal_safety_time;
 };
 
 ssize_t sec_bat_show_attrs(struct device *dev,
@@ -555,6 +569,9 @@ enum {
 	BATT_WDT_CONTROL,
 	MODE,
 	CHECK_PS_READY,
+	SAFETY_TIMER_SET,
+	BATT_SWELLING_CONTROL,
+	SAFETY_TIMER_INFO,
 };
 
 enum {

@@ -27,11 +27,9 @@ void ssp_enable(struct ssp_data *data, bool enable)
 	if (enable && data->is_ssp_shutdown) {
 		data->is_ssp_shutdown = false;
 		enable_irq(data->irq);
-		enable_irq_wake(data->irq);
 	} else if (!enable && !data->is_ssp_shutdown) {
 		data->is_ssp_shutdown = true;
 		disable_irq(data->irq);
-		disable_irq_wake(data->irq);
 	} else
 		ssp_errf("enable error");
 }
@@ -433,11 +431,13 @@ static int ssp_suspend(struct device *dev)
 	data->uLastResumeState = MSG2SSP_AP_STATUS_SUSPEND;
 	disable_debug_timer(data);
 
+	enable_irq_wake(data->irq);
+
 	if (SUCCESS != ssp_send_cmd(data, MSG2SSP_AP_STATUS_SUSPEND, 0))
 		ssp_errf("MSG2SSP_AP_STATUS_SUSPEND failed");
 
 	data->is_time_syncing = false;
-	disable_irq_nosync(data->irq);
+
 	return 0;
 }
 
@@ -446,9 +446,9 @@ static int ssp_resume(struct device *dev)
 	struct spi_device *spi_dev = to_spi_device(dev);
 	struct ssp_data *data = spi_get_drvdata(spi_dev);
 
-	enable_irq(data->irq);
 	ssp_infof();
 	enable_debug_timer(data);
+	disable_irq_wake(data->irq);
 	ssp_timestamp_resume(data);
 
 	if (SUCCESS != ssp_send_cmd(data, MSG2SSP_AP_STATUS_RESUME, 0))
@@ -650,8 +650,8 @@ static void ssp_shutdown(struct spi_device *spi_dev)
 		ssp_errf("MSG2SSP_AP_STATUS_SHUTDOWN failed");
 
 	data->is_ssp_shutdown = true;
-	disable_irq_nosync(data->irq);
 	disable_irq_wake(data->irq);
+	disable_irq(data->irq);
 
 	clean_pending_list(data);
 

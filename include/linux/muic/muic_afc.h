@@ -34,6 +34,7 @@ struct muic_data_t;
 
 int muic_check_afc_state(int state);
 int muic_torch_prepare(int state);
+int muic_restart_afc(void);
 void muic_init_afc_state(muic_data_t *pmuic);
 
 #endif /* __MUIC_AFC_H__ */

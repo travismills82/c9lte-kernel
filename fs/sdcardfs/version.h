@@ -29,6 +29,8 @@
  *    - obb will be used only multi_user option is enabled
  *    - modify sdcardfs_setattr because it changes i_size without spinlock
  *      it can make race condition with fsstack_copy_inode_size()
+ * 2016.03.   : Release Version 3.2.1
+ *    - modify sdcardfs_propagate_lookup because it can return without kfree
  */
 
-#define SDCARDFS_VERSION "3.2.0"
+#define SDCARDFS_VERSION "3.2.1"

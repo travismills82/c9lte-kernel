@@ -2170,8 +2170,8 @@ static int mdss_dsi_cmd_dma_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 		status = reg_val & DSI_INTR_CMD_DMA_DONE;
 		if (status) {
 			reg_val &= DSI_INTR_MASK_ALL;
-			/* clear CMD DMA isr only */
-			reg_val |= DSI_INTR_CMD_DMA_DONE;
+			/* clear CMD DMA and BTA_DONE isr only */
+			reg_val |= (DSI_INTR_CMD_DMA_DONE | DSI_INTR_BTA_DONE);
 			MIPI_OUTP(ctrl->ctrl_base + 0x0110, reg_val);
 			mdss_dsi_disable_irq_nosync(ctrl, DSI_CMD_TERM);
 			complete(&ctrl->dma_comp);		
@@ -3072,6 +3072,11 @@ irqreturn_t mdss_dsi_isr(int irq, void *ptr)
 
 	pr_debug("%s: ndx=%d isr=%x\n", __func__, ctrl->ndx, isr);
 
+	if (isr & DSI_INTR_ERROR) {
+		MDSS_XLOG(ctrl->ndx, ctrl->mdp_busy, isr, 0x97);
+		mdss_dsi_error(ctrl);
+	}
+
 	if (isr & DSI_INTR_BTA_DONE) {
 		spin_lock(&ctrl->mdp_lock);
 		mdss_dsi_disable_irq_nosync(ctrl, DSI_BTA_TERM);
@@ -3093,11 +3098,6 @@ irqreturn_t mdss_dsi_isr(int irq, void *ptr)
 			mdss_dsi_set_reg(ctrl, 0x0c, 0x44440000, 0x44440000);
 		}
 		spin_unlock(&ctrl->mdp_lock);
-	}
-
-	if (isr & DSI_INTR_ERROR) {
-		MDSS_XLOG(ctrl->ndx, ctrl->mdp_busy, isr, 0x97);
-		mdss_dsi_error(ctrl);
 	}
 
 	if (isr & DSI_INTR_VIDEO_DONE) {

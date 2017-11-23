@@ -247,6 +247,9 @@ enum sm5705_muic_reg_item {
 				CTRL_INT_MASK_MASK)
 #define DEV_TYPE3_AFC_TA		(0x1 << 7)
 
+#define SM5705_AFC_TA_ATTACHED		0x01
+#define SM5705_DT1_DCP			0x40
+
 struct reg_value_set {
 	int value;
 	char *alias;
@@ -1354,22 +1357,30 @@ static int sm5705_afc_init_check(struct regmap_desc *pdesc)
 		return 0;
 	}
 
-	if (pmuic->vps.s.val1 != 0x40){
-		pr_info("%s:%s pmuic->vps.s.val1 != 0x40  return \n",MUIC_DEV_NAME, __func__);
+
+	if (pmuic->vps.s.val1 != SM5705_DT1_DCP) {
+		pr_info("%s:%s pmuic->vps.s.val1 != DCP charger return \n",
+						MUIC_DEV_NAME, __func__);
 		return 0;
 	}
 
 	pr_info("%s:%s pmuic->intr.intr3[0x%02x]\n",MUIC_DEV_NAME, __func__, pmuic->intr.intr3);
-	if (pmuic->intr.intr3 & 0x01){
+	if ((pmuic->intr.intr3 & SM5705_AFC_TA_ATTACHED) ||
+				(pmuic->vps.s.val1 == SM5705_DT1_DCP)) {
+#if defined(CONFIG_MUIC_SUPPORT_CCIC) && !defined(CONFIG_SEC_FACTORY)
+		if (pmuic->is_ccic_attach)
+			afcops->afc_ta_attach(pmuic->regmapdesc);
+		else {
+			pmuic->retry_afc = true;
+			pr_info("%s: Need AFC restart for late ccic_attach\n", __func__);
+		}
+#else
 		afcops->afc_ta_attach(pmuic->regmapdesc);
-		return 0;
+
+#endif
 	}
 
-	pr_info("%s:%s pmuic->vps.s.val1 [0x%02x]\n",MUIC_DEV_NAME, __func__, pmuic->vps.s.val1 );
-	if (pmuic->vps.s.val1 == 0x40 ){
-		afcops->afc_ta_attach(pmuic->regmapdesc);
-		return 0;
-	}
+
 	return 0;
 }
 

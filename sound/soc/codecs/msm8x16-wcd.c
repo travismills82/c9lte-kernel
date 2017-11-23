@@ -3508,7 +3508,7 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, micb_int_reg, 0x08, 0x08);
 			msm8x16_notifier_call(codec,
 					WCD_EVENT_POST_MICBIAS_2_ON);
-		} else if (strnstr(w->name, internal3_text, 30)) {
+		} else if (strnstr(w->name, internal3_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x01, 0x01);
 		} else if (strnstr(w->name, external2_text, strlen(w->name))) {
 			msm8x16_notifier_call(codec,
@@ -3532,7 +3532,7 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 		} else if (strnstr(w->name, internal2_text, strlen(w->name))) {
 			msm8x16_notifier_call(codec,
 					WCD_EVENT_POST_MICBIAS_2_OFF);
-		} else if (strnstr(w->name, internal3_text, 30)) {
+		} else if (strnstr(w->name, internal3_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x2, 0x0);
 		} else if (strnstr(w->name, external2_text, strlen(w->name))) {
 			/*
@@ -4666,17 +4666,12 @@ static int msm8x16_wcd_codec_enable_rx_chain(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
-		dev_dbg(w->codec->dev,
-			"%s: PMU:Sleeping 20ms after disabling mute\n",
-			__func__);
+		dev_dbg(w->codec->dev, "%s: [PMU]\n", __func__);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		dev_dbg(w->codec->dev,
-			"%s: PMD:Sleeping 20ms after disabling mute\n",
-			__func__);
+		dev_dbg(w->codec->dev, "%s: [PMD]\n", __func__);
 		snd_soc_update_bits(codec, w->reg,
 			    1 << w->shift, 0x00);
-		msleep(20);
 		break;
 	}
 	return 0;

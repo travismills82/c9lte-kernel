@@ -47,6 +47,12 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 
+#ifdef CONFIG_MMC_SUPPORT_STLOG
+#include <linux/stlog.h>
+#else
+#define ST_LOG(fmt,...)
+#endif
+
 /* If the device is not responding */
 #define MMC_CORE_TIMEOUT_MS	(10 * 60 * 1000) /* 10 minute timeout */
 
@@ -409,10 +415,28 @@ void mmc_blk_init_bkops_statistics(struct mmc_card *card)
 	bkops_stats->suspend = 0;
 	bkops_stats->hpi = 0;
 	bkops_stats->enabled = true;
+	bkops_stats->auto_start = 0;
+	bkops_stats->auto_stop = 0;
 
 	spin_unlock(&bkops_stats->lock);
 }
 EXPORT_SYMBOL(mmc_blk_init_bkops_statistics);
+
+static void mmc_update_bkops_auto_on(struct mmc_bkops_stats *stats)
+{
+	spin_lock_irq(&stats->lock);
+	if (stats->enabled)
+		stats->auto_start++;
+	spin_unlock_irq(&stats->lock);
+}
+
+static void mmc_update_bkops_auto_off(struct mmc_bkops_stats *stats)
+{
+	spin_lock_irq(&stats->lock);
+	if (stats->enabled)
+		stats->auto_stop++;
+	spin_unlock_irq(&stats->lock);
+}
 
 static void mmc_start_cmdq_request(struct mmc_host *host,
 				   struct mmc_request *mrq)
@@ -476,6 +500,59 @@ void mmc_start_delayed_bkops(struct mmc_card *card)
 				   card->bkops_info.delay_ms));
 }
 EXPORT_SYMBOL(mmc_start_delayed_bkops);
+
+ /**
+ *	mmc_set_auto_bkops - set auto BKOPS for supported cards
+ *	@card: MMC card to start BKOPS
+ *	@enable: enable/disable flag
+ *
+ *	Configure the card to run automatic BKOPS.
+ *	Should be called when host is claimed.
+ */
+int mmc_set_auto_bkops(struct mmc_card *card, bool enable)
+{
+	int ret = 0;
+	u8 bkops_en;
+
+	BUG_ON(!card);
+	enable = !!enable;
+
+	if (unlikely(!mmc_card_support_auto_bkops(card))) {
+		pr_err("%s: %s: card doesn't support auto bkops\n",
+				mmc_hostname(card->host), __func__);
+		return -EPERM;
+	}
+
+	if (enable) {
+		if (mmc_card_doing_auto_bkops(card))
+			goto out;
+		bkops_en = card->ext_csd.bkops_en | EXT_CSD_BKOPS_AUTO_EN;
+	} else {
+		if (!mmc_card_doing_auto_bkops(card))
+			goto out;
+		bkops_en = card->ext_csd.bkops_en & ~EXT_CSD_BKOPS_AUTO_EN;
+	}
+
+	ret = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_BKOPS_EN,
+			bkops_en, 0);
+	if (ret) {
+		pr_err("%s: %s: error in setting auto bkops to %d (%d)\n",
+			mmc_hostname(card->host), __func__, enable, ret);
+	} else {
+		if (enable) {
+			mmc_card_set_auto_bkops(card);
+			mmc_update_bkops_auto_on(&card->bkops_info.bkops_stats);
+		} else {
+			mmc_card_clr_auto_bkops(card);
+			mmc_update_bkops_auto_off(
+					&card->bkops_info.bkops_stats);
+		}
+		card->ext_csd.bkops_en = bkops_en;
+	}
+out:
+	return ret;
+}
+EXPORT_SYMBOL(mmc_set_auto_bkops);
 
 /**
  *	mmc_start_bkops - start BKOPS for supported cards
@@ -2371,8 +2448,12 @@ int mmc_resume_bus(struct mmc_host *host)
 	unsigned long flags;
 	int err = 0;
 
-	if (!mmc_bus_needs_resume(host))
+	mmc_claim_host(host);
+
+	if (!mmc_bus_needs_resume(host)) {
+		mmc_release_host(host);
 		return -EINVAL;
+	}
 
 	pr_info("%s: Starting deferred resume\n", mmc_hostname(host));
 	spin_lock_irqsave(&host->lock, flags);
@@ -2397,6 +2478,8 @@ int mmc_resume_bus(struct mmc_host *host)
 	}
 	mmc_bus_put(host);
 	pr_info("%s: Deferred resume completed\n", mmc_hostname(host));
+
+	mmc_release_host(host);
 
 	return 0;
 }
@@ -3756,6 +3839,7 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 	if (ret && host->card) {
 		mmc_card_set_removed(host->card);
 		pr_debug("%s: card remove detected\n", mmc_hostname(host));
+		ST_LOG("<%s> %s: card remove detected\n", __func__,mmc_hostname(host));
 	}
 
 	return ret;
@@ -3858,6 +3942,9 @@ void mmc_rescan(struct work_struct *work)
 		goto out;
 	}
 
+#if !defined(CONFIG_SEC_HYBRID_TRAY)
+	ST_LOG("<%s> %s insertion detected",__func__,host->class_dev.kobj.name);
+#endif
 	mmc_rpm_hold(host, &host->class_dev);
 	mmc_claim_host(host);
 	if (!mmc_rescan_try_freq(host, host->f_min))
@@ -4382,6 +4469,11 @@ void mmc_rpm_hold(struct mmc_host *host, struct device *dev)
 		if (pm_runtime_suspended(dev))
 			BUG_ON(1);
 	}
+
+#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+	if (mmc_bus_needs_resume(host))
+		mmc_resume_bus(host);
+#endif
 }
 
 EXPORT_SYMBOL(mmc_rpm_hold);

@@ -41,3 +41,6 @@ obj-$(CONFIG_TZ_ICCC)     += tz_iccc/
 # Knox SDP
 obj-$(CONFIG_SDP) += sdp/
 obj-$(CONFIG_SDP) += sdp/built-in.o
+
+#KNOX TEST
+obj-$(CONFIG_KNOX_TEST)     += knox_test/

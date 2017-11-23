@@ -216,12 +216,27 @@ static int muic_irq_handler_afc(muic_data_t *pmuic, int irq)
 
 	if(pmuic->afc_disable == 0){
 		if (intr3 & INT3_AFC_TA_ATTACHED_MASK) {  /*AFC_TA_ATTACHED*/
+#if defined(CONFIG_MUIC_SUPPORT_CCIC) && !defined(CONFIG_SEC_FACTORY)		
+			/* To prevent damage by RP0 Cable, AFC should be progress after ccic_attach */
+			if (pmuic->is_ccic_attach) {
+				ret = afcops->afc_ta_attach(pmuic->regmapdesc);
+				if (intr1 & MUIC_INT_DETACH_MASK) {
+					return INT_REQ_DONE;
+				} else {
+					return ret;
+				}
+			} else {
+				pmuic->retry_afc = true;
+				pr_info("%s: Need AFC restart for late ccic_attach\n", __func__);
+			}
+#else
 			ret = afcops->afc_ta_attach(pmuic->regmapdesc);
 			if (intr1 & MUIC_INT_DETACH_MASK) {
 				return INT_REQ_DONE;
 			} else {
 				return ret;
 			}
+#endif			
 		} else if (intr3 & INT3_AFC_ACCEPTED_MASK) {  /*AFC_ACCEPTED*/
 			ret = afcops->afc_ta_accept(pmuic->regmapdesc);
 			if (intr1 & MUIC_INT_DETACH_MASK) {
@@ -515,7 +530,12 @@ static int muic_probe(struct i2c_client *i2c,
 	pmuic->attached_dev = ATTACHED_DEV_UNKNOWN_MUIC;
 	pmuic->is_gamepad = false;
 	pmuic->is_dcdtmr_intr = false;
-
+#if defined(CONFIG_MUIC_SUPPORT_CCIC)	
+	pmuic->is_ccic_attach = false;
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC)
+	pmuic->retry_afc = false;
+#endif
+#endif	
 	if (get_afc_mode() == CH_MODE_AFC_DISABLE_MASK) {
 		pr_info("  AFC mode disabled\n");
 		pmuic->afc_disable = 1;

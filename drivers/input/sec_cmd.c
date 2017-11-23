@@ -73,10 +73,17 @@ static ssize_t sec_cmd_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	if(strlen(buf) >= SEC_CMD_STR_LEN){		
+	if (strlen(buf) >= SEC_CMD_STR_LEN) {		
 		pr_err("%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
 		return -EINVAL;
 	}
+
+	if (count >= (unsigned int)SEC_CMD_STR_LEN) {
+		pr_err("%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
+		return -EINVAL;
+	}
+
 	if (data->cmd_is_running == true) {
 		pr_err("%s: other cmd is running.\n", __func__);
 		return -EBUSY;
@@ -265,10 +272,17 @@ static ssize_t sec_cmd_store(struct device *dev, struct device_attribute *devatt
 		return -EINVAL;
 	}
 
-	if(strlen(buf) >= SEC_CMD_STR_LEN){		
+	if (strlen(buf) >= SEC_CMD_STR_LEN) {		
 		pr_err("%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
 		return -EINVAL;
 	}
+
+	if (count >= (unsigned int)SEC_CMD_STR_LEN) {
+		pr_err("%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
+		return -EINVAL;
+	}
+
 	strncpy(cmd.cmd, buf, count);
 
 	mutex_lock(&data->fifo_lock);

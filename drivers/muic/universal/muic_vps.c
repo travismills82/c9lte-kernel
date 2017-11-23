@@ -556,16 +556,19 @@ static int resolve_dedicated_dev(muic_data_t *pmuic, muic_attached_dev_t *pdev, 
 	/* Attached */
 	switch (val1) {
 	case DEV_TYPE1_CDP:
+		if (!vbvolt) break;
 		intr = MUIC_INTR_ATTACH;
 		new_dev = ATTACHED_DEV_CDP_MUIC;
 		pr_info("%s : USB_CDP DETECTED\n", MUIC_DEV_NAME);
 		break;
 	case DEV_TYPE1_USB:
+		if (!vbvolt) break;
 		intr = MUIC_INTR_ATTACH;
 		new_dev = ATTACHED_DEV_USB_MUIC;
 		pr_info("%s : USB DETECTED\n", MUIC_DEV_NAME);
 		break;
 	case DEV_TYPE1_DEDICATED_CHG:
+		if (!vbvolt) break;
 		intr = MUIC_INTR_ATTACH;
 		new_dev = ATTACHED_DEV_TA_MUIC;
 		pr_info("%s : DEDICATED CHARGER DETECTED\n", MUIC_DEV_NAME);

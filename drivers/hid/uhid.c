@@ -196,7 +196,7 @@ static int uhid_hid_get_raw(struct hid_device *hid, unsigned char rnum,
 	spin_unlock_irqrestore(&uhid->qlock, flags);
 
 	ret = wait_event_interruptible_timeout(uhid->report_wait,
-				atomic_read(&uhid->report_done), 5 * HZ);
+				atomic_read(&uhid->report_done), 10 /*5 * HZ*/);  // from 5000 to 10 due to BT stuck when connecting apple magic mouse during a2dp playing
 
 	/*
 	 * Make sure "uhid->running" is cleared on shutdown before

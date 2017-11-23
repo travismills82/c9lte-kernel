@@ -403,6 +403,12 @@
 			};
 		};
 	};
+
+	qcom,mss@4080000 {	
+		/* GPIO output to mss */
+		qcom,gpio-stop-reason-0 = <&smp2pgpio_ssr_smp2p_1_out 4 0>;
+		qcom,gpio-stop-reason-1 = <&smp2pgpio_ssr_smp2p_1_out 5 0>;
+	};
 };
 
 &secure_mem{

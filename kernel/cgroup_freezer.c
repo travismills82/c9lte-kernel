@@ -455,6 +455,38 @@ static u64 freezer_parent_freezing_read(struct cgroup *cgroup, struct cftype *cf
 	return (bool)(freezer->state & CGROUP_FREEZING_PARENT);
 }
 
+/**
+ * Check if the task is allowed to be added to the freezer group
+ * only the admin can add the task to the freezer group.
+ */
+static int freezer_allow_attach(struct cgroup *cgrp,
+			       struct cgroup_taskset *tset)
+{
+	const struct cred *cred = current_cred(), *tcred;
+	struct task_struct *task;
+
+	cgroup_taskset_for_each(task, cgrp, tset) {
+		tcred = __task_cred(task);
+
+		if ((current != task) && !capable(CAP_SYS_ADMIN) &&
+		    !uid_eq(cred->euid, tcred->uid) &&
+		    !uid_eq(cred->euid, tcred->suid))
+			return -EACCES;
+	}
+
+	return 0;
+}
+
+/**
+ * Cancel the attach action when it failed. It's usually used to restore the attach action.
+ * But freezer attach just sends the signal, it will always success.
+ * So, it doesn't need to restore any action.
+ */
+static void freezer_cancel_attach(struct cgroup *cgrp,
+				 struct cgroup_taskset *tset)
+{
+}
+
 static struct cftype files[] = {
 	{
 		.name = "state",
@@ -485,4 +517,6 @@ struct cgroup_subsys freezer_subsys = {
 	.attach		= freezer_attach,
 	.fork		= freezer_fork,
 	.base_cftypes	= files,
+	.allow_attach   = freezer_allow_attach,
+	.cancel_attach  = freezer_cancel_attach,
 };

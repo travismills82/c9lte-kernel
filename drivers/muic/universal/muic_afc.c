@@ -53,7 +53,6 @@ static int afc_work_state;
 
 static int muic_is_afc_voltage(void);
 static int muic_dpreset_afc(void);
-static int muic_restart_afc(void);
 
 /* To make AFC work properly on boot */
 static int is_charger_ready;
@@ -262,7 +261,7 @@ static int muic_dpreset_afc(void)
 	return 0;
 }
 
-static int muic_restart_afc(void)
+int muic_restart_afc(void)
 {
 	struct i2c_client *i2c = gpmuic->i2c;
 	int ret, value;

@@ -241,6 +241,12 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 		return -EINVAL;
 	}
 
+	if (count >= (unsigned int)TSP_CMD_STR_LEN) {
+		E("%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
+		return -EINVAL;
+	}
+
 	if (finfo->cmd_is_running == true) {
 		E("%s: other cmd is running\n", __func__);
 		goto err_out;

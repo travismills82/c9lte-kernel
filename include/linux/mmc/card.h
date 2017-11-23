@@ -12,11 +12,20 @@
 
 #include <linux/device.h>
 #include <linux/mmc/core.h>
+#include <linux/mmc/mmc.h>
 #include <linux/mod_devicetable.h>
 #include <linux/notifier.h>
 #include <linux/errno.h>
 
 #define MMC_CARD_CMDQ_BLK_SIZE 512
+#define MAX_CNT_U64	0xFFFFFFFFFF
+#define MAX_CNT_U32	0x7FFFFFFF
+#define STATUS_MASK		\
+	(R1_ERROR |		\
+	 R1_CC_ERROR | 		\
+	 R1_CARD_ECC_FAILED |	\
+	 R1_WP_VIOLATION |	\
+	 R1_OUT_OF_RANGE)
 #define MMC_CARD_ERROR_LOGGING
 
 struct mmc_cid {
@@ -290,6 +299,11 @@ struct mmc_card_error_log {
 	u64	first_issue_time;
 	u64	last_issue_time;
 	u32	count;
+	u32	ge_cnt;		// status[19] : general error or unknown error
+	u32	cc_cnt;		// status[20] : internal card controller error
+	u32	ecc_cnt;	// status[21] : ecc error
+	u32	wp_cnt;		// status[26] : write protection error
+	u32	oor_cnt;	// status[31] : out of range error
 };
 #endif
 
@@ -305,6 +319,8 @@ struct mmc_bkops_stats {
 	bool			print_stats;
 	unsigned int bkops_level[BKOPS_NUM_OF_SEVERITY_LEVELS];
 	bool			ignore_card_bkops_status;
+	unsigned int	auto_start;
+	unsigned int	auto_stop;
 };
 
 /**
@@ -384,6 +400,7 @@ struct mmc_card {
 #define MMC_STATE_CMDQ		(1<<12)         /* card is in cmd queue mode */
 #define MMC_STATE_SUSPENDED     (1<<13)         /* card is suspended */
 #define MMC_STATE_HS400_STROBE	(1<<14)         /* card is in strobe mode */
+#define MMC_STATE_AUTO_BKOPS	(1<<15)		/* card is doing auto BKOPS */
 	unsigned int		quirks; 	/* card quirks */
 #define MMC_QUIRK_LENIENT_FN0	(1<<0)		/* allow SDIO FN0 writes outside of the VS CCCR range */
 #define MMC_QUIRK_BLKSZ_FOR_BYTE_MODE (1<<1)	/* use func->cur_blksize */
@@ -621,6 +638,7 @@ static inline void __maybe_unused remove_quirk(struct mmc_card *card, int data)
 #define mmc_card_need_bkops(c)	((c)->state & MMC_STATE_NEED_BKOPS)
 #define mmc_card_cmdq(c)       ((c)->state & MMC_STATE_CMDQ)
 #define mmc_card_suspended(c)  ((c)->state & MMC_STATE_SUSPENDED)
+#define mmc_card_doing_auto_bkops(c)	((c)->state & MMC_STATE_AUTO_BKOPS)
 
 #define mmc_card_set_present(c)	((c)->state |= MMC_STATE_PRESENT)
 #define mmc_card_set_readonly(c) ((c)->state |= MMC_STATE_READONLY)
@@ -647,6 +665,8 @@ static inline void __maybe_unused remove_quirk(struct mmc_card *card, int data)
 #define mmc_card_clr_cmdq(c)           ((c)->state &= ~MMC_STATE_CMDQ)
 #define mmc_card_set_suspended(c) ((c)->state |= MMC_STATE_SUSPENDED)
 #define mmc_card_clr_suspended(c) ((c)->state &= ~MMC_STATE_SUSPENDED)
+#define mmc_card_set_auto_bkops(c)	((c)->state |= MMC_STATE_AUTO_BKOPS)
+#define mmc_card_clr_auto_bkops(c)	((c)->state &= ~MMC_STATE_AUTO_BKOPS)
 
 static inline int get_mmc_fw_version(struct mmc_card *card)
 {
@@ -736,6 +756,16 @@ static inline bool mmc_enable_qca6574_settings(const struct mmc_card *c)
 static inline bool mmc_enable_qca9377_settings(const struct mmc_card *c)
 {
 	return c->quirks & MMC_QUIRK_QCA9377_SETTINGS;
+}
+
+static inline bool mmc_card_support_auto_bkops(const struct mmc_card *c)
+{
+	return c->ext_csd.rev >= 7;
+}
+
+static inline bool mmc_card_configured_manual_bkops(const struct mmc_card *c)
+{
+	return c->ext_csd.bkops_en & EXT_CSD_BKOPS_MANUAL_EN;
 }
 
 #define mmc_card_name(c)	((c)->cid.prod_name)

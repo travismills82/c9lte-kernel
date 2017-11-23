@@ -7061,6 +7061,13 @@ static ssize_t cmd_store(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
+	if (count >= (unsigned int)CMD_STR_LEN) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
+		return -EINVAL;
+	}
+
 	if (data->cmd_is_running == true) {
 		dev_err(rmi4_data->pdev->dev.parent,
 			"%s: Still servicing previous command. Skip cmd - %s\n",

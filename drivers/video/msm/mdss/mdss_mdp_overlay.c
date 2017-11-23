@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1503,13 +1503,13 @@ int mdss_mdp_overlay_start(struct msm_fb_data_type *mfd)
 		}
 
 		pr_info("DPK !mdp5_data->mdata->idle_pc_enabled\n");
-		
-		rc = pm_runtime_get_sync(&mdata->pdev->dev); 
-		if (IS_ERR_VALUE(rc)) { 
-			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n", 
-			 rc); 
-		goto end; 
- 		} 
+
+		rc = pm_runtime_get_sync(&mdata->pdev->dev);
+		if (IS_ERR_VALUE(rc)) {
+			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n",
+			 rc);
+		goto end;
+ 		}
 	}
 
 	/*
@@ -2797,28 +2797,35 @@ int mdss_mdp_overlay_vsync_ctrl(struct msm_fb_data_type *mfd, int en)
 
 	if (!ctl)
 		return -ENODEV;
-	if (!ctl->ops.add_vsync_handler || !ctl->ops.remove_vsync_handler)
-		return -EOPNOTSUPP;
+
+	mutex_lock(&mdp5_data->ov_lock);
+	mutex_lock(&ctl->offlock);
+	if (!ctl->ops.add_vsync_handler || !ctl->ops.remove_vsync_handler) {
+		rc = -EOPNOTSUPP;
+		goto exit;
+	}
 	if (!ctl->panel_data->panel_info.cont_splash_enabled
-			&& (!mdss_mdp_ctl_is_power_on(ctl) ||
-			mdss_panel_is_power_on_ulp(ctl->power_state))){
+		&& (!mdss_mdp_ctl_is_power_on(ctl) ||
+		mdss_panel_is_power_on_ulp(ctl->power_state))) {
 		pr_debug("fb%d vsync pending first update en=%d\n",
 				mfd->index, en);
-		return -EPERM;
+		rc = -EPERM;
+		goto exit;
 	}
 
 	pr_debug("fb%d vsync en=%d\n", mfd->index, en);
 	MDSS_XLOG(mfd->index, en);                                                    //Temorary merge from Grace xiao13.li
 
-	mutex_lock(&mdp5_data->ov_lock);
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 	if (en)
 		rc = ctl->ops.add_vsync_handler(ctl, &ctl->vsync_handler);
 	else
 		rc = ctl->ops.remove_vsync_handler(ctl, &ctl->vsync_handler);
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
-	mutex_unlock(&mdp5_data->ov_lock);
 
+exit:
+	mutex_unlock(&ctl->offlock);
+	mutex_unlock(&mdp5_data->ov_lock);
 	return rc;
 }
 
@@ -3784,6 +3791,11 @@ static int mdss_mdp_hw_cursor_update(struct msm_fb_data_type *mfd,
 
 	if (cursor->set & FB_CUR_SETIMAGE) {
 		u32 cursor_addr;
+		if (img->width * img->height * 4 > cursor_frame_size) {
+			pr_err("cursor image size is too large\n");
+			ret = -EINVAL;
+			goto done;
+		}
 		ret = copy_from_user(mfd->cursor_buf, img->data,
 				img->width * img->height * 4);
 		if (ret) {
@@ -3856,7 +3868,8 @@ static int mdss_bl_scale_config(struct msm_fb_data_type *mfd,
 							mfd->bl_min_lvl);
 
 	/* update current backlight to use new scaling*/
-	mdss_fb_set_backlight(mfd, curr_bl);
+	if (mfd->allow_bl_update)
+		mdss_fb_set_backlight(mfd, curr_bl);
 	mutex_unlock(&mfd->bl_lock);
 	return ret;
 }
@@ -4121,12 +4134,16 @@ static int mdss_fb_get_metadata(struct msm_fb_data_type *mfd,
 		ret = mdss_fb_get_hw_caps(mfd, &metadata->data.caps);
 		break;
 	case metadata_op_get_ion_fd:
-		if (mfd->fb_ion_handle) {
+		if (mfd->fb_ion_handle && mfd->fb_ion_client) {
+			get_dma_buf(mfd->fbmem_buf);
 			metadata->data.fbmem_ionfd =
-				dma_buf_fd(mfd->fbmem_buf, 0);
-			if (metadata->data.fbmem_ionfd < 0)
+				ion_share_dma_buf_fd(mfd->fb_ion_client,
+					mfd->fb_ion_handle);
+			if (metadata->data.fbmem_ionfd < 0) {
+				dma_buf_put(mfd->fbmem_buf);
 				pr_err("fd allocation failed. fd = %d\n",
 						metadata->data.fbmem_ionfd);
+			}
 		}
 		break;
 	case metadata_op_crc:
@@ -4193,7 +4210,7 @@ static int mdss_mdp_overlay_precommit(struct msm_fb_data_type *mfd)
 				mfd->index, ret);
 		ret = -EPIPE;
 	}
- 
+
 /* BS Patch 3 */
 
 	/*
@@ -4907,16 +4924,16 @@ ctl_stop:
 		u32 vsync_time = 1000 / (fps ? : DEFAULT_FRAME_RATE);
 
 		msleep(vsync_time);
-		 
-	 /* 
-	 * the retire work can still schedule after above retire_signal 
-	 * api call. Flush workqueue guarantees that current caller 
- 	 * context is blocked till retire_work finishes. Any work 
- 	 * schedule after flush call should not cause any issue because 
-         * retire_signal api checks for retire_cnt with sync_mutex lock. 
-	 */ 
- 
-	       flush_work(&mdp5_data->retire_work); 
+
+	 /*
+	 * the retire work can still schedule after above retire_signal
+	 * api call. Flush workqueue guarantees that current caller
+ 	 * context is blocked till retire_work finishes. Any work
+ 	 * schedule after flush call should not cause any issue because
+         * retire_signal api checks for retire_cnt with sync_mutex lock.
+	 */
+
+	       flush_work(&mdp5_data->retire_work);
 
 		__vsync_retire_signal(mfd, mdp5_data->retire_cnt);
 	}
@@ -4955,7 +4972,7 @@ ctl_stop:
 						rc);
 
 				pr_info("DPK !mdp5_data->mdata->idle_pc_enabled\n");
-				
+
 				rc = pm_runtime_put(&mdata->pdev->dev);
 				if (rc)
 					pr_err("unable to suspend w/pm_runtime_put (%d)\n",

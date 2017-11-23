@@ -157,6 +157,13 @@ typedef struct _muic_data_t {
 
 	bool			discard_interrupt;
 	bool			is_dcdtmr_intr;
+	/* Add Muic structure's member variable for VZW requirement(Rp0 Cable) */
+#if defined(CONFIG_MUIC_SUPPORT_CCIC)
+	bool			is_ccic_attach;
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC)	
+	bool			retry_afc;
+#endif
+#endif		
 #if defined(CONFIG_USB_EXTERNAL_NOTIFY)
 	/* USB Notifier */
 	struct notifier_block	usb_nb;

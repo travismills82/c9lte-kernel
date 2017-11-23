@@ -151,13 +151,6 @@ static int check_event_type(enum otg_notify_events event)
 	return ret;
 }
 
-static int check_same_event_type(enum otg_notify_events event1,
-		enum otg_notify_events event2)
-{
-	return (check_event_type(event1)
-			== check_event_type(event2));
-}
-
 const char *event_string_ex(enum otg_notify_events event)
 {
 	int virt;
@@ -613,7 +606,6 @@ static void otg_notify_state(struct otg_notify *n,
 	struct usb_notify *u_notify = (struct usb_notify *)(n->u_notify);
 	int type = 0;
 	int virtual = 0;
-	unsigned long prev_c_type = 0;
 
 	pr_info("%s+ event=%s(%lu), enable=%s\n", __func__,
 		event_string_ex(event), event, enable == 0 ? "off" : "on");
@@ -711,10 +703,6 @@ static void otg_notify_state(struct otg_notify *n,
 		}
 		u_notify->diable_v_drive = 0;
 		if (enable) {
-			if (check_same_event_type(prev_c_type, event)) {
-				pr_err("now host mode, skip this command\n");
-				goto err;
-			}
 			u_notify->ndev.mode = NOTIFY_HOST_MODE;
 			if (n->is_wakelock)
 				wake_lock(&u_notify->wlock);
@@ -850,8 +838,7 @@ static void otg_notify_state(struct otg_notify *n,
 				&& event != NOTIFY_EVENT_HOST) {
 		if (enable) {
 			if (n->device_check_sec) {
-				if (prev_c_type != NOTIFY_EVENT_HOST)
-					u_notify->is_device = 0;
+				u_notify->is_device = 0;
 				u_notify->check_work_complete = 0;
 				schedule_delayed_work(&u_notify->check_work,
 					n->device_check_sec*HZ);

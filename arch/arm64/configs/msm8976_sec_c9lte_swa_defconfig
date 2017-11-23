@@ -36,10 +36,6 @@ CONFIG_VBUS_NOTIFIER=y
 CONFIG_LEDS_SM5705_RGB=y
 CONFIG_LEDS_CLASS=y
 
-# debug flag added as temp fix for hang problem in C9_SWA
-# until the root cause is found, because issue did not 
-# reproduce with this change
-CONFIG_MSM_FORCE_WDOG_BITE_ON_PANIC=y
 
 #
 # MOTOR
@@ -86,6 +82,7 @@ CONFIG_INBATVOLT_FG=y
 # DA9155 for EVB REV01
 CONFIG_CHARGER_DA9155=y
 CONFIG_CHANGE_VBUS_VOLTAGE=y
+CONFIG_BATTERY_AGE_FORECAST=y
 
 #Power off Alarm
 CONFIG_RTC_AUTO_PWRON=y
@@ -220,3 +217,16 @@ CONFIG_NET_CLS_ACT=y # for enabling the action target.
 CONFIG_NET_ACT_MIRRED=y  # for enabling the mirred target for redirecting the packet between the devices.
 CONFIG_NET_EMATCH=y   #basic uses extended matches so this has to be present
 CONFIG_NET_SCH_INGRESS=y # classifier for ingress packet
+
+#WLAN Built-in driver
+CONFIG_PRONTO_WLAN=y
+CONFIG_PRIMA_WLAN_BTAMP=n
+CONFIG_PRIMA_WLAN_LFR=y
+CONFIG_PRIMA_WLAN_11AC_HIGH_TP=y
+CONFIG_QCOM_TDLS=y
+CONFIG_QCOM_VOWIFI_11R=y
+CONFIG_ENABLE_LINUX_REG=y
+CONFIG_WLAN_OFFLOAD_PACKETS=y
+CONFIG_QCOM_ESE=y
+CONFIG_QCOM_ESE_UPLOAD=y
+CONFIG_WLAN_FEATURE_11W=y

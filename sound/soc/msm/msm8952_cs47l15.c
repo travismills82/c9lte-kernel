@@ -49,6 +49,7 @@
 #include <linux/mfd/arizona/registers.h>
 #include <sound/tlv.h>
 #endif
+#include <sound/pcm_params.h>
 
 #define BTSCO_RATE_8KHZ 8000
 #define BTSCO_RATE_16KHZ 16000
@@ -555,7 +556,8 @@ static int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	struct snd_interval *channels = hw_param_interval(params,
 					SNDRV_PCM_HW_PARAM_CHANNELS);
 
-       if (192000==params_rate(params)&&mi2s_rx_bit_format == SNDRV_PCM_FORMAT_S24_LE)
+
+	if (mi2s_rx_bit_format == SNDRV_PCM_FORMAT_S24_LE)
 	   	rate->min = rate->max = 192000;
 	else  
 		rate->min = rate->max = 48000;//params_rate(params);
@@ -614,17 +616,12 @@ static int msm_mi2s_snd_hw_params(struct snd_pcm_substream *substream,
 {
 	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
 		 substream->name, substream->stream);
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
+	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
 			       mi2s_rx_bit_format);
-	else
-		param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
-			       SNDRV_PCM_FORMAT_S16_LE);
 #if defined(CONFIG_SND_SOC_CS47L15)
 	sample_rate_i2s_cs47l15 = params_rate(params);
 #endif
-	pr_debug("%s(): rate = %d, format = %d\n", __func__,sample_rate_i2s_cs47l15,mi2s_rx_bit_format);
-
+	pr_debug("%s(): rate = %d, format = %d  params_format(params) = %d \n", __func__,sample_rate_i2s_cs47l15,mi2s_rx_bit_format, params_format(params));
 	return 0;
 }
 
@@ -863,7 +860,7 @@ static int msm_mi2s_sclk_ctl(struct snd_pcm_substream *substream, bool enable)
 				mi2s_tx_clk.clk_id =
 						msm8952_get_clk_id(port_id);
 				mi2s_tx_clk.clk_freq_in_hz =
-						Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
+						get_mi2s_rx_clk_val(port_id);//Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
 				ret = afe_set_lpass_clock_v2(port_id,
 							&mi2s_tx_clk);
 				break;

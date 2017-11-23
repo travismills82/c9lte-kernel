@@ -68,6 +68,7 @@ static void *subsys_notify_handle;
 
 u32 apps_to_ipa_hdl, ipa_to_apps_hdl; /* get handler from ipa */
 static struct mutex ipa_to_apps_pipe_handle_guard;
+static struct mutex add_mux_channel_lock;
 static int wwan_add_ul_flt_rule_to_ipa(void);
 static int wwan_del_ul_flt_rule_to_ipa(void);
 static void ipa_wwan_msg_free_cb(void*, u32, u32);
@@ -1345,9 +1346,11 @@ static int ipa_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 					rmnet_mux_val.mux_id);
 				return rc;
 			}
+			mutex_lock(&add_mux_channel_lock);
 			if (rmnet_index >= MAX_NUM_OF_MUX_CHANNEL) {
 				IPAWANERR("Exceed mux_channel limit(%d)\n",
 				rmnet_index);
+				mutex_unlock(&add_mux_channel_lock);
 				return -EFAULT;
 			}
 			IPAWANDBG("ADD_MUX_CHANNEL(%d, name: %s)\n",
@@ -1359,6 +1362,9 @@ static int ipa_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			memcpy(mux_channel[rmnet_index].vchannel_name,
 				extend_ioctl_data.u.rmnet_mux_val.vchannel_name,
 				sizeof(mux_channel[rmnet_index].vchannel_name));
+			mux_channel[rmnet_index].vchannel_name[
+				IFNAMSIZ - 1] = '\0';
+
 			IPAWANDBG("cashe device[%s:%d] in IPA_wan[%d]\n",
 				mux_channel[rmnet_index].vchannel_name,
 				mux_channel[rmnet_index].mux_id,
@@ -1373,6 +1379,7 @@ static int ipa_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 					IPAWANERR("device %s reg IPA failed\n",
 						extend_ioctl_data.u.
 						rmnet_mux_val.vchannel_name);
+					mutex_unlock(&add_mux_channel_lock);
 					return -ENODEV;
 				}
 				mux_channel[rmnet_index].mux_channel_set = true;
@@ -1385,6 +1392,7 @@ static int ipa_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 				mux_channel[rmnet_index].ul_flt_reg = false;
 			}
 			rmnet_index++;
+			mutex_unlock(&add_mux_channel_lock);
 			break;
 		case RMNET_IOCTL_SET_EGRESS_DATA_FORMAT:
 			IPAWANDBG("get RMNET_IOCTL_SET_EGRESS_DATA_FORMAT\n");
@@ -2426,13 +2434,30 @@ int rmnet_ipa_set_data_quota(struct wan_ioctl_set_data_quota *data)
  *
  * Return codes:
  * 0: Success
- * -EFAULT: Invalid interface name provided
+ * -EFAULT: Invalid src/dst pipes provided
  * other: See ipa_qmi_set_data_quota
  */
 int rmnet_ipa_set_tether_client_pipe(
 	struct wan_ioctl_set_tether_client_pipe *data)
 {
 	int number, i;
+
+	/* error checking if ul_src_pipe_len valid or not*/
+	if (data->ul_src_pipe_len > QMI_IPA_MAX_PIPES_V01 ||
+		data->ul_src_pipe_len < 0) {
+		IPAWANERR("UL src pipes %d exceeding max %d\n",
+			data->ul_src_pipe_len,
+			QMI_IPA_MAX_PIPES_V01);
+		return -EFAULT;
+	}
+	/* error checking if dl_dst_pipe_len valid or not*/
+	if (data->dl_dst_pipe_len > QMI_IPA_MAX_PIPES_V01 ||
+		data->dl_dst_pipe_len < 0) {
+		IPAWANERR("DL dst pipes %d exceeding max %d\n",
+			data->dl_dst_pipe_len,
+			QMI_IPA_MAX_PIPES_V01);
+		return -EFAULT;
+	}
 
 	IPAWANDBG("client %d, UL %d, DL %d, reset %d\n",
 	data->ipa_client,
@@ -2690,6 +2715,8 @@ static int __init ipa_wwan_init(void)
 	ipa_to_apps_hdl = -1;
 
 	ipa_qmi_init();
+	
+	mutex_init(&add_mux_channel_lock);
 
 	/* Register for Modem SSR */
 	subsys_notify_handle = subsys_notif_register_notifier(SUBSYS_MODEM,
@@ -2711,6 +2738,7 @@ static void __exit ipa_wwan_cleanup(void)
 		IPAWANERR(
 		"Error subsys_notif_unregister_notifier system %s, ret=%d\n",
 		SUBSYS_MODEM, ret);
+	mutex_destroy(&add_mux_channel_lock);
 	platform_driver_unregister(&rmnet_ipa_driver);
 }
 

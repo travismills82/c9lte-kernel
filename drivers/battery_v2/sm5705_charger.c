@@ -130,6 +130,7 @@ enum {
 
 static struct device_attribute sm5705_charger_attrs[] = {
 	SM5705_CHARGER_ATTR(chip_id),
+	SM5705_CHARGER_ATTR(charger_op_mode),
 };
 
 /**
@@ -1265,11 +1266,19 @@ create_attrs_failed:
 ssize_t sm5705_chg_show_attrs(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	const ptrdiff_t offset = attr - sm5705_charger_attrs;
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct sm5705_charger_data *charger =
+		container_of(psy, struct sm5705_charger_data, psy_chg);
 	int i = 0;
+	unsigned char reg_data;
 
 	switch (offset){
 	case CHIP_ID:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n", "SM5705");
+		break;
+	case CHARGER_OP_MODE:
+	    sm5705_read_reg(charger->i2c, SM5705_REG_CNTL, &reg_data);
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",reg_data);
 		break;
 	default:
 		return -EINVAL;
@@ -1281,10 +1290,27 @@ ssize_t sm5705_chg_store_attrs(struct device *dev, struct device_attribute *attr
 {
 	const ptrdiff_t offset = attr - sm5705_charger_attrs;
 	int ret = 0;
+	int x = 0;
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct sm5705_charger_data *charger =
+		container_of(psy, struct sm5705_charger_data, psy_chg);
 
 	switch(offset){
 	case CHIP_ID:
 		ret = count;
+		break;
+	case CHARGER_OP_MODE:
+		if (sscanf(buf, "%d\n", &x) == 1) {
+			if (x == 2) {
+				sm5705_update_reg(charger->i2c, SM5705_REG_CNTL, SM5705_CHARGER_OP_MODE_SUSPEND, 0x07);
+			}else if(x == 1){
+				sm5705_update_reg(charger->i2c, SM5705_REG_CNTL, SM5705_CHARGER_OP_MODE_CHG_ON, 0x07);
+			}else {
+				pr_info("change charger op mode fail\n");
+				return -EINVAL;
+			}
+			ret = count;
+		}
 		break;
 	default:
 		ret = -EINVAL;
@@ -1842,7 +1868,10 @@ static irqreturn_t sm5705_chg_done_isr(int irq, void *data)
 	/* nCHG pin toggle */
 	gpio_direction_output(charger->pdata->chg_gpio_en, charger->is_charging);
 	msleep(10);
-	//gpio_direction_output(charger->pdata->chg_gpio_en, !(charger->is_charging));
+	/* Removed so to be able to check top-off timer at the factory */
+#if !defined(CONFIG_SEC_FACTORY)
+	gpio_direction_output(charger->pdata->chg_gpio_en, !(charger->is_charging));
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -2111,7 +2140,6 @@ static sec_charger_platform_data_t *_get_sm5705_charger_platform_data
 	}
 #else
 	struct sm5705_platform_data *sm5705_pdata = dev_get_platdata(sm5705->dev);
-	struct sm5705_dev *sm5705 = dev_get_drvdata(pdev->dev.parent);
 	sec_charger_platform_data_t *pdata;
 
 	pdata = sm5705_pdata->charger_data;
@@ -2239,7 +2267,6 @@ static void sm5705_charger_initialize(struct sm5705_charger_data *charger)
 static int sm5705_charger_probe(struct platform_device *pdev)
 {
 	struct sm5705_dev *sm5705 = dev_get_drvdata(pdev->dev.parent);
-	struct sm5705_platform_data *pdata = dev_get_platdata(sm5705->dev);
 	struct sm5705_charger_data *charger;
 	int ret = 0;
 
@@ -2341,9 +2368,6 @@ err_power_supply_register_chg:
 	power_supply_unregister(&charger->psy_chg);
 err_power_supply_register:
 	destroy_workqueue(charger->wqueue);
-#ifdef CONFIG_OF
-	kfree(pdata->charger_data);
-#endif
 	mutex_destroy(&charger->charger_mutex);
 err_free:
 	kfree(charger);

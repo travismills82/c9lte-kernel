@@ -63,6 +63,7 @@
 /* System secure parameters */
 #define SYSSCOPE_FLAG		(SYS_ICCC_TYPE_START+0x00000)
 #define TRUSTBOOT_FLAG		(SYS_ICCC_TYPE_START+0x00001)
+#define TIMA_VERSION_FLAG	(SYS_ICCC_TYPE_START+0x00002)
 
 /* end Secure memory Parameters */
 

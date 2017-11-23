@@ -86,7 +86,7 @@ void msm_camera_io_dump_2(void __iomem *addr, int size)
 	int i;
 	u32 *p = (u32 *) addr;
 	u32 data;
-	pr_err("%s: %p %d\n", __func__, addr, size);
+	pr_err("%s: %pK %d\n", __func__, addr, size);
 	line_str[0] = '\0';
 	p_str = line_str;
 	for (i = 0; i < size/4; i++) {
@@ -718,7 +718,7 @@ int msm_isp_cfg_set_stats_ab(struct vfe_device *vfe_dev, void *arg)
 	struct msm_isp_set_stats_ab *stats_ab = NULL;
 
 	if (!vfe_dev || !arg) {
-		pr_err("%s: Error! Invalid input vfe_dev %p arg %p\n",
+		pr_err("%s: Error! Invalid input vfe_dev %pK arg %pK\n",
 			__func__, vfe_dev, arg);
 	return -EINVAL;
 	}
@@ -825,6 +825,11 @@ static int msm_isp_set_dual_HW_master_slave_mode(
 	}
 	ISP_DBG("%s: vfe %d num_src %d\n", __func__, vfe_dev->pdev->id,
 		dual_hw_ms_cmd->num_src);
+	if (dual_hw_ms_cmd->num_src > VFE_SRC_MAX) {
+		pr_err("%s: Error! Invalid num_src %d\n", __func__,
+			dual_hw_ms_cmd->num_src);
+		return -EINVAL;
+	}
 	/* This for loop is for non-primary intf to be marked with Master/Slave
 	 * in order for frame id sync. But their timestamp is not saved.
 	 * So no sof_info resource is allocated */

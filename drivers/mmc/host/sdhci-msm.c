@@ -2729,7 +2729,24 @@ out:
 	return rc;
 }
 
+static void sdhci_msm_disable_controller_clock(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = pltfm_host->priv;
 
+	if (atomic_read(&msm_host->controller_clock)) {
+		if (!IS_ERR(msm_host->clk))
+			clk_disable_unprepare(msm_host->clk);
+		if (!IS_ERR(msm_host->pclk))
+			clk_disable_unprepare(msm_host->pclk);
+		if (!IS_ERR(msm_host->ice_clk))
+			clk_disable_unprepare(msm_host->ice_clk);
+		sdhci_msm_bus_voting(host, 0);
+		atomic_set(&msm_host->controller_clock, 0);
+		pr_debug("%s: %s: disabled controller clock\n",
+			mmc_hostname(host->mmc), __func__);
+	}
+}
 
 static int sdhci_msm_prepare_clocks(struct sdhci_host *host, bool enable)
 {
@@ -3543,8 +3560,72 @@ static ssize_t sd_detect_cnt_show(struct device *dev,
 	return sprintf(buf, "%u", msm_host->mmc->card_detect_cnt);
 }
 
+static struct device *sd_info_dev;
+static ssize_t sd_count_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+        struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_card *card = msm_host->mmc->card;
+	struct mmc_card_error_log *err_log;
+	u64 total_cnt = 0;
+	int len = 0;
+	int i = 0;
+
+	if (!card) {
+		len = snprintf(buf, PAGE_SIZE, "no card\n");
+		goto out;
+	}
+	err_log = card->err_log;
+
+	for (i = 0; i < 6; i++) {
+		if (total_cnt < MAX_CNT_U64)
+			total_cnt += err_log[i].count;
+	}
+	len = snprintf(buf, PAGE_SIZE, "%lld\n", total_cnt);
+out:
+	return len;
+}
+
+static struct device *sd_data_dev;
+static ssize_t sd_data_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+        struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+	struct mmc_card *card = msm_host->mmc->card;
+	struct mmc_card_error_log *err_log;
+	u64 total_c_cnt = 0;
+	u64 total_t_cnt = 0;
+	int len = 0;
+	int i = 0;
+
+	if (!card) {
+		len = snprintf(buf, PAGE_SIZE,
+			"\"GE\":\"0\",\"CC\":\"0\",\"ECC\":\"0\",\"WP\":\"0\","\
+			"\"OOR\":\"0\",\"CRC\":\"0\",\"TMO\":\"0\"\n");
+		goto out;
+	}
+	err_log = card->err_log;
+
+	for (i = 0; i < 6; i++) {
+		if (err_log[i].err_type == -EILSEQ && total_c_cnt < MAX_CNT_U64)
+			total_c_cnt += err_log[i].count;
+		if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
+			total_t_cnt += err_log[i].count;
+	}
+
+	len = snprintf(buf, PAGE_SIZE,
+			"\"GE\":\"%d\",\"CC\":\"%d\",\"ECC\":\"%d\",\"WP\":\"%d\","\
+			"\"OOR\":\"%d\",\"CRC\":\"%lld\",\"TMO\":\"%lld\"\n",
+			err_log[0].ge_cnt, err_log[0].cc_cnt, err_log[0].ecc_cnt,
+			err_log[0].wp_cnt, err_log[0].oor_cnt, total_c_cnt, total_t_cnt);
+out:
+	return len;
+}
+
 static DEVICE_ATTR(status, S_IRUGO, t_flash_detect_show, NULL);
 static DEVICE_ATTR(cd_cnt, S_IRUGO, sd_detect_cnt_show, NULL);
+static DEVICE_ATTR(sd_count, S_IRUGO, sd_count_show, NULL);
+static DEVICE_ATTR(sd_data, S_IRUGO, sd_data_show, NULL);
 
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
@@ -3961,6 +4042,40 @@ static int sdhci_msm_probe(struct platform_device *pdev)
                         pr_err("%s : Failed to create device file(%s)!\n",
                                         __func__, dev_attr_cd_cnt.attr.name);
                 dev_set_drvdata(t_flash_detect_dev, msm_host);
+	}
+#if (defined(CONFIG_NO_DETECT_PIN) || defined(CONFIG_SEC_HYBRID_TRAY))
+        if (sd_info_dev == NULL && !strcmp(host->hw_name, "7864900.sdhci")) {
+#else
+        if (sd_info_dev == NULL && gpio_is_valid(msm_host->pdata->status_gpio)) {
+#endif
+                sd_info_dev = device_create(sec_class,
+                                NULL, 0, NULL, "sdinfo");
+                if (IS_ERR(sd_info_dev))
+                        pr_err("%s : Failed to create device!\n", __func__);
+
+                if (device_create_file(sd_info_dev,
+                        &dev_attr_sd_count) < 0)
+                        pr_err("%s : Failed to create device file(%s)!\n",
+                                        __func__, dev_attr_sd_count.attr.name);
+
+                dev_set_drvdata(sd_info_dev, msm_host);
+        }
+#if (defined(CONFIG_NO_DETECT_PIN) || defined(CONFIG_SEC_HYBRID_TRAY))
+        if (sd_data_dev == NULL && !strcmp(host->hw_name, "7864900.sdhci")) {
+#else
+        if (sd_data_dev == NULL && gpio_is_valid(msm_host->pdata->status_gpio)) {
+#endif
+                sd_data_dev = device_create(sec_class,
+                                NULL, 0, NULL, "sddata");
+                if (IS_ERR(sd_data_dev))
+                        pr_err("%s : Failed to create device!\n", __func__);
+
+                if (device_create_file(sd_data_dev,
+                        &dev_attr_sd_data) < 0)
+                        pr_err("%s : Failed to create device file(%s)!\n",
+                                        __func__, dev_attr_sd_data.attr.name);
+
+                dev_set_drvdata(sd_data_dev, msm_host);
         }
 
 	if ((sdhci_readl(host, SDHCI_CAPABILITIES) & SDHCI_CAN_64BIT) &&
@@ -4273,7 +4388,6 @@ static int sdhci_msm_suspend(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = pltfm_host->priv;
-	int ret = 0;
 
 	if (host->mmc->index == 2)
 		pr_crit("%s: %s @line=%d, START\n", mmc_hostname(host->mmc), __func__, __LINE__);
@@ -4286,9 +4400,10 @@ static int sdhci_msm_suspend(struct device *dev)
 		goto out;
 	}
 
-	return sdhci_msm_runtime_suspend(dev);
+	sdhci_msm_runtime_suspend(dev);
 out:
-	return ret;
+	sdhci_msm_disable_controller_clock(host);
+	return 0;
 }
 
 static int sdhci_msm_resume(struct device *dev)

@@ -43,6 +43,7 @@
 #include "muic_debug.h"
 #include "muic_regmap.h"
 #include "muic_state.h"
+#include <linux/muic/muic_afc.h>
 #include <linux/ccic/ccic_notifier.h>
 
 #if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
@@ -277,6 +278,10 @@ static void mdev_handle_ccic_detach(muic_data_t *pmuic)
 
 	pmuic->legacy_dev = 0;
 	pmuic->attached_dev = 0;
+	pmuic->is_ccic_attach = false;
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC)	
+	pmuic->retry_afc = false;
+#endif	
 #if defined(CONFIG_MUIC_HV)
 	pmuic->phv->attached_dev = 0;
 #endif
@@ -529,6 +534,17 @@ static int muic_handle_ccic_ATTACH(muic_data_t *pmuic, CC_NOTI_ATTACH_TYPEDEF *p
 		else
 			pr_info("%s: No VBUS-> doing nothing.\n", __func__);
 
+		/* To prevent damage by RP0 Cable, AFC should be progress after ccic_attach */
+		pmuic->is_ccic_attach = true;
+
+		/* W/A for late ccic attach */
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC)		
+		if (pmuic->retry_afc) {
+			pmuic->retry_afc = false;
+			pr_info("%s: Do AFC restart because of late ccic_attach.\n", __func__);
+			muic_restart_afc();
+		}
+#endif		
 		/* CCIC ATTACH means NO WATER */
 		if (pmuic->afc_water_disable) {
 			pr_info("%s: Water is not detected, AFC Enable\n", __func__);

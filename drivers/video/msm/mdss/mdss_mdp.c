@@ -1,7 +1,7 @@
 /*
  * MDSS MDP Interface (used by framebuffer core)
  *
- * Copyright (c) 2007-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2017, The Linux Foundation. All rights reserved.
  * Copyright (C) 2007 Google Incorporated
  *
  * This software is licensed under the terms of the GNU General Public
@@ -1023,11 +1023,40 @@ static int mdss_mdp_gdsc_notifier_call(struct notifier_block *self,
 
 	mdata = container_of(self, struct mdss_data_type, gdsc_cb);
 
-	if (event & REGULATOR_EVENT_ENABLE)
-		__mdss_restore_sec_cfg(mdata);
+	if (event & REGULATOR_EVENT_ENABLE) {
+		/*
+		 * As SMMU in low tier targets is not power collapsible,
+		 * hence we don't need to restore sec configuration.
+		 */
+		if (!mdss_mdp_req_init_restore_cfg(mdata))
+			__mdss_restore_sec_cfg(mdata);
+	}
 
 	return NOTIFY_OK;
 }
+
+static void __halt_vbif_xin(void) 
+{ 
+	struct mdss_data_type *mdata2 = mdss_mdp_get_mdata(); 
+	pr_err("Halting VBIF_IN\n"); 
+	MDSS_VBIF_WRITE(mdata2, MMSS_VBIF_AXI_HALT_CTRL0, 0xFFFFFFFF, false); 
+ 
+} 
+ 
+static void __dump_vbif_state(void) 
+{ 
+	struct mdss_data_type *mdata3 = mdss_mdp_get_mdata(); 
+	unsigned int reg_val; 
+ 
+	reg_val = MDSS_VBIF_READ(mdata3, MMSS_VBIF_XIN_HALT_CTRL0,false); 
+	pr_err("Value of VBIF_XIN_HALT_CTRL0 = 0x%x\n", reg_val); 
+	reg_val = MDSS_VBIF_READ(mdata3, MMSS_VBIF_XIN_HALT_CTRL1,false); 
+	pr_err("Value of VBIF_XIN_HALT_CTRL1 = 0x%x\n", reg_val); 
+	reg_val = MDSS_VBIF_READ(mdata3, MMSS_VBIF_AXI_HALT_CTRL0,false); 
+	pr_err("Value of VBIF_AXI_HALT_CTRL0 = 0x%x\n", reg_val); 
+	reg_val = MDSS_VBIF_READ(mdata3, MMSS_VBIF_AXI_HALT_CTRL1,false); 
+	pr_err("Value of VBIF_AXI_HALT_CTRL1 = 0x%x\n", reg_val); 
+} 
 
 static int mdss_iommu_tlb_timeout_notify(struct notifier_block *self,
 		unsigned long action, void *dev)
@@ -1039,13 +1068,21 @@ static int mdss_iommu_tlb_timeout_notify(struct notifier_block *self,
 
 	if (strcmp(client_name, "mdp_ns") && strcmp(client_name, "mdp_secure"))
 		return 0;
-
+	
+	pr_err("mdss tlb timeout notifier: client name is %s", client_name);
+	
 	switch (action) {
 	case TLB_SYNC_TIMEOUT:
-		pr_err("cb for TLB SYNC timeout. Dumping XLOG's\n");
-		MDSS_XLOG_TOUT_HANDLER_FATAL_DUMP("vbif", "mdp",
-					"mdp_dbg_bus", "atomic_context");
-		break;
+			pr_err("cb for TLB SYNC timeout. Dumping XLOG's\n");
+			mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
+			__dump_vbif_state();
+			__halt_vbif_xin();
+			usleep(20000);
+			__dump_vbif_state();
+			mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
+			MDSS_XLOG_TOUT_HANDLER_FATAL_DUMP("vbif", "mdp",
+			"mdp_dbg_bus", "atomic_context");
+			break;
 	}
 
 	return 0;

@@ -86,14 +86,14 @@
 			 <&clock_gcc clk_gcc_blsp1_qup4_spi_apps_clk>;
 
 		etspi-spi@0 {
-			compatible = "etspi,et510";
+			compatible = "etspi,et5xx";
 			reg = <0>;
 			spi-max-frequency = <19200000>;
 			etspi-sleepPin = <&msm_gpio 128 0x00>;
-			etspi-drdyPin = <&msm_gpio 112 0x01>;
+			etspi-drdyPin = <&msm_gpio 112 0x00>;
 			etspi-ldoPin = <&msm_gpio 122 0x00>;
-			etspi-orient = <0>;
-			etspi-ldocontrol= <1>;
+			etspi-chipid = "ET510";
+			etspi-ldocontrol = <1>;
 			etspi-min_cpufreq_limit = <1804800>;
 
 			pinctrl-names = "default", "sleep", "idle";

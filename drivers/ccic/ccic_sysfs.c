@@ -341,6 +341,29 @@ static ssize_t ccic_store_firmware_update(struct device *dev,
 }
 static DEVICE_ATTR(fw_update, 0220, NULL, ccic_store_firmware_update);
 
+static ssize_t ccic_water_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct s2mm005_data *usbpd_data = dev_get_drvdata(dev);
+	int water = 0;
+
+	if(!usbpd_data) {
+		pr_err("%s usbpd_data is null!!\n", __func__);
+		return -ENODEV;
+	}
+	pr_info("%s water=%d, booting_water_det=%d\n", __func__,
+		usbpd_data->water_det, usbpd_data->booting_water_det);
+
+	if(usbpd_data->water_det || usbpd_data->booting_water_det == 1)
+		water = 1;
+	/* ccic_water_show is called when UsbDeviceManager boot completed */
+	/* After handset boot completed, don't need to check booting water again */
+	usbpd_data->booting_water_det = 2;
+
+	return sprintf(buf, "%d\n", water);
+}
+static DEVICE_ATTR(water, 0444, ccic_water_show, NULL);
+
 static struct attribute *ccic_attributes[] = {
 	&dev_attr_cur_version.attr,
 	&dev_attr_src_version.attr,
@@ -352,6 +375,7 @@ static struct attribute *ccic_attributes[] = {
 #endif
 	&dev_attr_fw_update.attr,
 	&dev_attr_fw_update_status.attr,
+	&dev_attr_water.attr,
 	NULL
 };
 

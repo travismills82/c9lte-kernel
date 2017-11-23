@@ -41,6 +41,7 @@
 
 enum {
 	CHIP_ID = 0,
+	CHARGER_OP_MODE=1,
 };
 ssize_t sm5705_chg_show_attrs(struct device *dev,
 				struct device_attribute *attr, char *buf);

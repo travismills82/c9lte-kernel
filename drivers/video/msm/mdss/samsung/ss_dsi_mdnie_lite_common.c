@@ -202,6 +202,16 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 				tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE;
 			else
 				tune_data_dsi1  = mdnie_data.DSI1_GRAYSCALE_NEGATIVE_MDNIE;
+		} else if (mdnie_tune_state->hmt_color_temperature) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
+			else
+				tune_data_dsi1 = mdnie_data.hmt_color_temperature_tune_value_dsi1[mdnie_tune_state->hmt_color_temperature];
+		} else if (mdnie_tune_state->night_mode_enable == true) {
+				if (mdnie_tune_state->index == DSI_CTRL_0)
+					tune_data_dsi0  = mdnie_data.DSI0_NIGHT_MODE_MDNIE;
+				else
+					tune_data_dsi1  = mdnie_data.DSI1_NIGHT_MODE_MDNIE;
 		} else if (mdnie_tune_state->hbm_enable == true) {
 			if (vdd->dtsi_data[mdnie_tune_state->index].hbm_ce_text_mode_support &&
 				((mdnie_tune_state->mdnie_app == BROWSER_APP) || (mdnie_tune_state->mdnie_app == eBOOK_APP)))
@@ -215,16 +225,6 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 				else
 					tune_data_dsi1  = mdnie_data.DSI1_HBM_CE_MDNIE;
 			}
-		} else if (mdnie_tune_state->night_mode_enable == true) {
-				if (mdnie_tune_state->index == DSI_CTRL_0)
-					tune_data_dsi0  = mdnie_data.DSI0_NIGHT_MODE_MDNIE;
-				else
-					tune_data_dsi1  = mdnie_data.DSI1_NIGHT_MODE_MDNIE;
-		} else if (mdnie_tune_state->hmt_color_temperature) {
-			if (mdnie_tune_state->index == DSI_CTRL_0)
-				tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
-			else
-				tune_data_dsi1 = mdnie_data.hmt_color_temperature_tune_value_dsi1[mdnie_tune_state->hmt_color_temperature];
 		} else if (mdnie_tune_state->mdnie_app == EMAIL_APP) {
 			/*
 				Some kind of panel doesn't suooprt EMAIL_APP mode, but SSRM module use same control logic.
