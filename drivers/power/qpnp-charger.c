@@ -2686,7 +2686,6 @@ get_prop_capacity(struct qpnp_chg_chip *chip)
 	return DEFAULT_CAPACITY;
 }
 
-#define DEFAULT_TEMP		250
 #define MAX_TOLERABLE_BATT_TEMP_DDC	680
 static int
 get_prop_batt_temp(struct qpnp_chg_chip *chip)
