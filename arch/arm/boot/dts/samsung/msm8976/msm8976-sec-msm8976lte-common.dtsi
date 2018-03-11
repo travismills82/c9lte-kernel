@@ -571,3 +571,13 @@
 		};
 	};
 };
+
+&firmware {
+	android {
+		fstab {
+			system {
+				fsmgr_flags = "wait";
+			};
+		};
+	};
+};
