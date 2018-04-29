@@ -122,40 +122,6 @@ static void cam_smmu_print_list(int idx);
 static void cam_smmu_print_table(void);
 static int cam_smmu_probe(struct platform_device *pdev);
 
-static void cam_smmu_check_vaddr_in_range(int idx, void *vaddr);
-
-static void cam_smmu_page_fault_work(struct work_struct *work)
-{
-	int idx, rc;
-	struct cam_smmu_work_payload *payload;
-
-	mutex_lock(&iommu_cb_set.payload_list_lock);
-	payload = list_first_entry(&iommu_cb_set.payload_list,
-			struct cam_smmu_work_payload,
-			list);
-	list_del(&payload->list);
-	mutex_unlock(&iommu_cb_set.payload_list_lock);
-
-	/* Dereference the payload to call the handler */
-	idx = payload->idx;
-	mutex_lock(&iommu_cb_set.cb_info[idx].lock);
-	cam_smmu_check_vaddr_in_range(idx, (void *)payload->iova);
-	if ((iommu_cb_set.cb_info[idx].fault_handler)) {
-		rc = iommu_cb_set.cb_info[idx].fault_handler(
-			payload->domain,
-			payload->dev,
-			payload->iova,
-			payload->flags,
-			iommu_cb_set.cb_info[idx].token);
-		if (rc < 0)
-			pr_err("Client handler returned rc = %d, token = %pK,"
-				" flags = %d, iova = %ld\n", rc,
-				iommu_cb_set.cb_info[idx].token, payload->flags, payload->iova);
-	}
-	mutex_unlock(&iommu_cb_set.cb_info[idx].lock);
-	kfree(payload);
-}
-
 static void cam_smmu_print_list(int idx)
 {
 	struct cam_dma_buff_info *mapping;
@@ -198,7 +164,7 @@ static void cam_smmu_check_vaddr_in_range(int idx, void *vaddr)
 				mapping->ion_fd);
 			return;
 		} else {
-			CDBG("vaddr %pK is not in this range: %pK-%pK, ion_fd = %d\n",
+			pr_err("vaddr %pK is not in this range: %pK-%pK, ion_fd = %d\n",
 				vaddr, (void *)start_addr, (void *)end_addr,
 				mapping->ion_fd);
 		}
@@ -247,8 +213,6 @@ static int cam_smmu_iommu_fault_handler(struct iommu_domain *domain,
 
 	if (!token) {
 		pr_err("Error: token is NULL\n");
-		pr_err("Error: domain = %pK, device = %pK\n", domain, dev);
-		pr_err("iova = %lX, flags = %d\n", iova, flags);
 		return -ENOSYS;
 	}
 
@@ -553,14 +517,13 @@ static int cam_smmu_map_buffer_and_add_to_list(int idx, int ion_fd,
 		goto err_detach;
 	}
 
-	rc = dma_map_sg(iommu_cb_set.cb_info[idx].dev, table->sgl,
-			table->nents, dma_dir);
-	if (!rc) {
-		pr_err("Error: dma_map_sg failed\n");
-		goto err_unmap_sg;
-	}
-
-	if (table->sgl) {
+	if(table->sgl){
+		rc = dma_map_sg(iommu_cb_set.cb_info[idx].dev, table->sgl,
+				table->nents, dma_dir);
+		if (!rc) {
+			pr_err("Error: dma_map_sg failed\n");
+			goto err_unmap_sg;
+		}
 		CDBG("DMA buf: %pK, device: %pK, attach: %pK, table: %pK\n",
 				(void *)buf,
 				(void *)iommu_cb_set.cb_info[idx].dev,

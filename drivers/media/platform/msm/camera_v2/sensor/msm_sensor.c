@@ -473,7 +473,7 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 #endif
 
 	if (!power_info || !sensor_i2c_client) {
-		pr_err("%s:%d failed: power_info %pK sensor_i2c_client %pK\n",
+		pr_err("%s:%d failed: power_info %p sensor_i2c_client %pK\n",
 			__func__, __LINE__, power_info, sensor_i2c_client);
 		return -EINVAL;
 	}

@@ -710,14 +710,12 @@ static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
 		cdata->is_supported = e_ctrl->is_supported;
 		length = strlen(e_ctrl->eboard_info->eeprom_name) + 1;
 		if (length > MAX_EEPROM_NAME) {
-			pr_err("%s:%d invalid eeprom name length %d\n",
+			pr_err("%s:%d invalid eeprom_name length %d\n",
 				__func__, __LINE__, (int)length);
 			rc = -EINVAL;
 			break;
-		}
-		memcpy(cdata->cfg.eeprom_name,
-			e_ctrl->eboard_info->eeprom_name,
-			sizeof(cdata->cfg.eeprom_name));
+		}		
+		memcpy(cdata->cfg.eeprom_name, e_ctrl->eboard_info->eeprom_name, length);
 		break;
 	case CFG_EEPROM_GET_CAL_DATA:
 		CDBG("%s E CFG_EEPROM_GET_CAL_DATA\n", __func__);
@@ -892,8 +890,8 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 	}
 	e_ctrl->eeprom_v4l2_subdev_ops = &msm_eeprom_subdev_ops;
 	e_ctrl->eeprom_mutex = &msm_eeprom_mutex;
-	CDBG("%s client = 0x%pK\n", __func__, client);
-	e_ctrl->eboard_info = (struct msm_eeprom_board_info *)(id->driver_data);
+	e_ctrl->eboard_info = kzalloc(sizeof(
+		struct msm_eeprom_board_info), GFP_KERNEL);
 	if (!e_ctrl->eboard_info) {
 		pr_err("%s failed line %d\n", __func__, __LINE__);
 		rc = -ENOMEM;
@@ -1646,15 +1644,12 @@ static int msm_eeprom_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 		cdata->is_supported = e_ctrl->is_supported;
 		length = strlen(e_ctrl->eboard_info->eeprom_name) + 1;
 		if (length > MAX_EEPROM_NAME) {
-			pr_err("%s:%d invalid eeprom name length %d\n",
+			pr_err("%s:%d invalid eeprom_name length %d\n",
 				__func__, __LINE__, (int)length);
 			rc = -EINVAL;
 			break;
-		}
-
-		memcpy(cdata->cfg.eeprom_name,
-			e_ctrl->eboard_info->eeprom_name,
-			sizeof(cdata->cfg.eeprom_name));
+		}		
+		memcpy(cdata->cfg.eeprom_name, e_ctrl->eboard_info->eeprom_name, length);
 		break;
 	case CFG_EEPROM_GET_CAL_DATA:
 		CDBG("%s E CFG_EEPROM_GET_CAL_DATA\n", __func__);

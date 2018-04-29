@@ -680,6 +680,24 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 
 		desc->ret[0] = desc->ret[1] = desc->ret[2] = 0;
 
+
+#ifdef CONFIG_TIMA_LKMAUTH
+		if ((pid_from_lkm == current_thread_info()->task->pid) || (call_from_ss_daemon)) {
+#else
+		if (call_from_ss_daemon) {
+#endif
+			flush_cache_all();
+
+#if defined(CONFIG_ARCH_MSM8952) || defined(CONFIG_ARCH_MSM8976)
+			smp_call_function((void (*)(void *))__wrap_flush_cache_all, NULL, 1);
+#endif
+
+#ifndef CONFIG_ARM64
+			outer_flush_all();
+#endif
+		}
+
+
 		if (scm_version == SCM_ARMV8_64)
 			ret = __scm_call_armv8_64(x0, desc->arginfo,
 						  desc->args[0], desc->args[1],

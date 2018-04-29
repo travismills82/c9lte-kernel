@@ -613,23 +613,29 @@ void msm_fd_hw_vbif_register(struct msm_fd_device *fd)
 	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
 		MSM_FD_VBIF_IN_RD_LIM_CONF0, 0x10);
 
-		for (i = 0; i < dt_count; i = i + MSM_FD_REG_LAST_IDX) {
-			msm_fd_hw_reg_clr(fd, base_idx,
-				dt_reg_settings[i + MSM_FD_REG_ADDR_OFFSET_IDX],
-				dt_reg_settings[i + MSM_FD_REG_MASK_IDX]);
-			msm_fd_hw_reg_set(fd, base_idx,
-				dt_reg_settings[i + MSM_FD_REG_ADDR_OFFSET_IDX],
-				dt_reg_settings[i + MSM_FD_REG_VALUE_IDX] &
-				dt_reg_settings[i + MSM_FD_REG_MASK_IDX]);
-			pr_debug("%s:%d] %pK %08x\n", __func__, __LINE__,
-				fd->iomem_base[base_idx] +
-				dt_reg_settings[i + MSM_FD_REG_ADDR_OFFSET_IDX],
-				dt_reg_settings[i + MSM_FD_REG_VALUE_IDX] &
-				dt_reg_settings[i + MSM_FD_REG_MASK_IDX]);
-		}
-		kfree(dt_reg_settings);
-	}
-	return 0;
+	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
+		MSM_FD_VBIF_IN_WR_LIM_CONF0, 0x10);
+
+	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
+		MSM_FD_VBIF_OUT_RD_LIM_CONF0, 0x10);
+
+	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
+		MSM_FD_VBIF_OUT_WR_LIM_CONF0, 0x10);
+
+	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
+		MSM_FD_VBIF_DDR_OUT_MAX_BURST, 0xF0F);
+
+	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
+		MSM_FD_VBIF_ARB_CTL, 0x30);
+
+	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
+		MSM_FD_VBIF_OUT_AXI_AMEMTYPE_CONF0, 0x02);
+
+	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
+		MSM_FD_VBIF_OUT_AXI_AOOO_EN, 0x10001);
+
+	msm_fd_hw_write_reg(fd, MSM_FD_IOMEM_VBIF,
+		MSM_FD_VBIF_ROUND_ROBIN_QOS_ARB, 0x03);
 }
 
 /*
