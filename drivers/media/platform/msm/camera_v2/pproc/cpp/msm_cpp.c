@@ -1655,7 +1655,7 @@ static void msm_cpp_do_timeout_work(struct work_struct *work)
 		jiffies);
 	mutex_lock(&cpp_dev->mutex);
 
-	if (!work || cpp_timer.data.cpp_dev->state != CPP_STATE_ACTIVE) {
+	if (!work || (cpp_timer.data.cpp_dev->state != CPP_STATE_ACTIVE)) {
 		pr_err("Invalid work:%pK or state:%d\n", work,
 			cpp_timer.data.cpp_dev->state);
 		goto end;
@@ -2586,7 +2586,8 @@ static int msm_cpp_cfg(struct cpp_device *cpp_dev,
 	int32_t rc = 0;
 	uint32_t i = 0;
 	uint32_t num_buff = sizeof(k_frame_info.output_buffer_info) /
-				sizeof(struct msm_cpp_buffer_info_t);
+		sizeof(struct msm_cpp_buffer_info_t);
+
 	if (copy_from_user(&k_frame_info,
 			(void __user *)ioctl_ptr->ioctl_ptr,
 			sizeof(k_frame_info)))
@@ -2966,8 +2967,7 @@ STREAM_BUFF_END:
 		uint32_t identity;
 		struct msm_cpp_buff_queue_info_t *buff_queue_info;
 		CPP_DBG("VIDIOC_MSM_CPP_DEQUEUE_STREAM_BUFF_INFO\n");
-		if ((ioctl_ptr->len == 0) ||
-		    (ioctl_ptr->len > sizeof(uint32_t))) {
+		if (ioctl_ptr->len != sizeof(uint32_t)) {
 			mutex_unlock(&cpp_dev->mutex);
 			return -EINVAL;
 		}

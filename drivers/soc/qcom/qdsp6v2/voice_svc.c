@@ -443,7 +443,6 @@ static ssize_t voice_svc_write(struct file *file, const char __user *buf,
 		 * has a variable size, check the minimum value count must be to
 		 * parse the message request then check the minimum size to hold
 		 * the payload of the message request.
-		 * has a variable size, check the minimum value count must be.
 		 */
 		if (count >= (sizeof(struct voice_svc_write_msg) +
 			      sizeof(struct voice_svc_cmd_request))) {

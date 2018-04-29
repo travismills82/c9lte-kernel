@@ -637,7 +637,6 @@ void diagfwd_close_transport(uint8_t transport, uint8_t peripheral)
 	}
 
 	mutex_lock(&driver->diagfwd_channel_mutex[peripheral]);
-//	mutex_lock(&driver->diagfwd_channel_mutex);
 	fwd_info = &early_init_info[transport][peripheral];
 	if (fwd_info->p_ops && fwd_info->p_ops->close)
 		fwd_info->p_ops->close(fwd_info->ctxt);

@@ -66,7 +66,6 @@ int wcd9xxx_init_slimslave(struct wcd9xxx *wcd9xxx, u8 wcd9xxx_pgd_la,
 		pr_err("%s: invalid rx num %d\n", __func__, rx_num);
 		return -EINVAL;
 	}
- 
 	if (wcd9xxx->rx_chs) {
 		wcd9xxx->num_rx_port = rx_num;
 		for (i = 0; i < rx_num; i++) {

@@ -1977,7 +1977,8 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 	struct qseecom_load_app_64bit_ireq load_req_64bit;
 	void *cmd_buf = NULL;
 	size_t cmd_len;
-    	bool first_time = false;
+	bool first_time = false;
+
 	/* Copy the relevant information needed for loading the image */
 	if (copy_from_user(&load_img_req,
 				(void __user *)argp,
@@ -2048,7 +2049,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		&qseecom.registered_app_list_lock, flags);
 		ret = 0;
 	} else {
-	    	first_time = true;
+		first_time = true;
 		pr_warn("App (%s) does'nt exist, loading apps for first time\n",
 			(char *)(load_img_req.img_name));
 		/* Get the handle of the shared fd */
@@ -2188,13 +2189,13 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		pr_err("copy_to_user failed\n");
 		ret = -EFAULT;
 		if (first_time == true) {
-         		spin_lock_irqsave(
-            			&qseecom.registered_app_list_lock, flags);
-         		list_del(&entry->list);
-         		spin_unlock_irqrestore(
-            			&qseecom.registered_app_list_lock, flags);
-         		kzfree(entry);
-      		}
+			spin_lock_irqsave(
+				&qseecom.registered_app_list_lock, flags);
+			list_del(&entry->list);
+			spin_unlock_irqrestore(
+				&qseecom.registered_app_list_lock, flags);
+			kzfree(entry);
+		}
 	}
 
 loadapp_err:
@@ -2630,11 +2631,10 @@ static int qseecom_send_service_cmd(struct qseecom_dev_handle *data,
 		if (req.cmd_id == QSEOS_RPMB_CHECK_PROV_STATUS_COMMAND) {
 			pr_warn("RPMB key status is 0x%x\n", resp.result);
 			if (put_user(resp.result,
-				(uint32_t __user *)req.resp_buf)) {
+					(uint32_t __user *)req.resp_buf)) {
 				ret = -EINVAL;
 				goto exit;
 			}
-
 			ret = 0;
 		}
 		break;
@@ -6130,6 +6130,8 @@ static int __qseecom_qteec_issue_cmd(struct qseecom_dev_handle *data,
 	void *cmd_buf = NULL;
 	size_t cmd_len;
 	struct sglist_info *table = data->sglistinfo_ptr;
+	void *req_ptr = NULL;
+	void *resp_ptr = NULL;
 
 	void *req_ptr = NULL;
 	void *resp_ptr = NULL;
