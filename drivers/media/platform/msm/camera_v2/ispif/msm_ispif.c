@@ -68,12 +68,17 @@ static void msm_ispif_io_dump_reg(struct ispif_device *ispif)
 {
 	if (!ispif->enb_dump_reg)
 		return;
+
+	if (!ispif->base) {
+		pr_err("%s: null pointer for the ispif base\n", __func__);
+		return;
+	}
 	msm_camera_io_dump(ispif->base, 0x250, 0);
 }
 
 
 static inline int msm_ispif_is_intf_valid(uint32_t csid_version,
-	uint8_t intf_type)
+	enum msm_ispif_vfe_intf intf_type)
 {
 	return ((csid_version <= CSID_VERSION_V22 && intf_type != VFE0) ||
 		(intf_type >= VFE_MAX)) ? false : true;
@@ -132,7 +137,7 @@ static void msm_ispif_get_pack_mask_from_cfg(
 			pack_mask[0] |= temp;
 		CDBG("%s:num %d cid %d mode %d pack_mask %x %x\n",
 			__func__, entry->num_cids, entry->cids[i],
-			pack_cfg[i].pack_mode,
+			pack_cfg[entry->cids[i]].pack_mode,
 			pack_mask[0], pack_mask[1]);
 
 	}
@@ -162,6 +167,16 @@ static int msm_ispif_config2(struct ispif_device *ispif,
 			params->num);
 		rc = -EINVAL;
 		return rc;
+	}
+
+	for (i = 0; i < params->num; i++) {
+		int j;
+
+		if (params->entries[i].num_cids > MAX_CID_CH_V2)
+			return -EINVAL;
+		for (j = 0; j < params->entries[i].num_cids; j++)
+			if (params->entries[i].cids[j] >= CID_MAX)
+				return -EINVAL;
 	}
 
 	for (i = 0; i < params->num; i++) {
@@ -599,7 +614,7 @@ static int msm_ispif_reset(struct ispif_device *ispif)
 			ispif->base + ISPIF_VFE_m_INTF_CMD_0(i));
 		msm_camera_io_w(ISPIF_STOP_INTF_IMMEDIATELY,
 			ispif->base + ISPIF_VFE_m_INTF_CMD_1(i));
-		pr_debug("%s: base %lx", __func__, (unsigned long)ispif->base);
+		pr_debug("%s: base %pK", __func__, ispif->base);
 		msm_camera_io_w(0, ispif->base +
 			ISPIF_VFE_m_PIX_INTF_n_CID_MASK(i, 0));
 		msm_camera_io_w(0, ispif->base +
@@ -624,7 +639,7 @@ static int msm_ispif_reset(struct ispif_device *ispif)
 }
 
 static void msm_ispif_sel_csid_core(struct ispif_device *ispif,
-	uint8_t intftype, uint8_t csid, uint8_t vfe_intf)
+	uint8_t intftype, uint8_t csid, enum msm_ispif_vfe_intf vfe_intf)
 {
 	uint32_t data;
 
@@ -664,7 +679,7 @@ static void msm_ispif_sel_csid_core(struct ispif_device *ispif,
 }
 
 static void msm_ispif_enable_crop(struct ispif_device *ispif,
-	uint8_t intftype, uint8_t vfe_intf, uint16_t start_pixel,
+	uint8_t intftype, enum msm_ispif_vfe_intf vfe_intf, uint16_t start_pixel,
 	uint16_t end_pixel)
 {
 	uint32_t data;
@@ -696,7 +711,7 @@ static void msm_ispif_enable_crop(struct ispif_device *ispif,
 }
 
 static void msm_ispif_enable_intf_cids(struct ispif_device *ispif,
-	uint8_t intftype, uint16_t cid_mask, uint8_t vfe_intf, uint8_t enable)
+	uint8_t intftype, uint16_t cid_mask, enum msm_ispif_vfe_intf vfe_intf, uint8_t enable)
 {
 	uint32_t intf_addr, data;
 
@@ -738,7 +753,7 @@ static void msm_ispif_enable_intf_cids(struct ispif_device *ispif,
 }
 
 static int msm_ispif_validate_intf_status(struct ispif_device *ispif,
-	uint8_t intftype, uint8_t vfe_intf)
+	uint8_t intftype, enum msm_ispif_vfe_intf vfe_intf)
 {
 	int rc = 0;
 	uint32_t data = 0;
@@ -778,7 +793,7 @@ static int msm_ispif_validate_intf_status(struct ispif_device *ispif,
 }
 
 static void msm_ispif_select_clk_mux(struct ispif_device *ispif,
-	uint8_t intftype, uint8_t csid, uint8_t vfe_intf)
+	uint8_t intftype, uint8_t csid, enum msm_ispif_vfe_intf vfe_intf)
 {
 	uint32_t data = 0;
 
