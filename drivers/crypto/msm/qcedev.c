@@ -1544,6 +1544,7 @@ static int qcedev_check_cipher_params(struct qcedev_cipher_op_req *req,
 			__func__, total, req->data_len);
 		goto error;
 	}
+
 	return 0;
 error:
 	return -EINVAL;
@@ -1661,7 +1662,6 @@ long qcedev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 	case QCEDEV_IOCTL_SHA_INIT_REQ:
 		{
 		struct scatterlist sg_src;
-
 		if (copy_from_user(&qcedev_areq.sha_op_req,
 					(void __user *)arg,
 					sizeof(struct qcedev_sha_op_req)))
@@ -1676,6 +1676,8 @@ long qcedev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 		if (err) {
 			mutex_unlock(&hash_access_lock);
 			return err;
+		}
+		mutex_unlock(&hash_access_lock);
 		if (copy_to_user((void __user *)arg, &qcedev_areq.sha_op_req,
 					sizeof(struct qcedev_sha_op_req)))
 			return -EFAULT;
@@ -1688,7 +1690,6 @@ long qcedev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 	case QCEDEV_IOCTL_SHA_UPDATE_REQ:
 		{
 		struct scatterlist sg_src;
-
 		if (copy_from_user(&qcedev_areq.sha_op_req,
 					(void __user *)arg,
 					sizeof(struct qcedev_sha_op_req)))
@@ -1718,15 +1719,16 @@ long qcedev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 				return err;
 			}
 		}
-
 		if (handle->sha_ctxt.diglen > QCEDEV_MAX_SHA_DIGEST) {
 			pr_err("Invalid sha_ctxt.diglen %d\n",
 					handle->sha_ctxt.diglen);
+			mutex_unlock(&hash_access_lock);
 			return -EINVAL;
 		}
 		memcpy(&qcedev_areq.sha_op_req.digest[0],
 				&handle->sha_ctxt.digest[0],
 				handle->sha_ctxt.diglen);
+		mutex_unlock(&hash_access_lock);
 		if (copy_to_user((void __user *)arg, &qcedev_areq.sha_op_req,
 					sizeof(struct qcedev_sha_op_req)))
 			return -EFAULT;
@@ -1764,6 +1766,7 @@ long qcedev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 		memcpy(&qcedev_areq.sha_op_req.digest[0],
 				&handle->sha_ctxt.digest[0],
 				handle->sha_ctxt.diglen);
+		mutex_unlock(&hash_access_lock);
 		if (copy_to_user((void __user *)arg, &qcedev_areq.sha_op_req,
 					sizeof(struct qcedev_sha_op_req)))
 			return -EFAULT;
@@ -1773,7 +1776,6 @@ long qcedev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 	case QCEDEV_IOCTL_GET_SHA_REQ:
 		{
 		struct scatterlist sg_src;
-
 		if (copy_from_user(&qcedev_areq.sha_op_req,
 					(void __user *)arg,
 					sizeof(struct qcedev_sha_op_req)))
@@ -1805,6 +1807,7 @@ long qcedev_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 		memcpy(&qcedev_areq.sha_op_req.digest[0],
 				&handle->sha_ctxt.digest[0],
 				handle->sha_ctxt.diglen);
+		mutex_unlock(&hash_access_lock);
 		if (copy_to_user((void __user *)arg, &qcedev_areq.sha_op_req,
 					sizeof(struct qcedev_sha_op_req)))
 			return -EFAULT;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -646,15 +646,7 @@ static void msm_vfe40_read_irq_status(struct vfe_device *vfe_dev,
 		*irq_status0 &= ~(0x18000000);
 	}
 
-	*irq_status0 &= vfe_dev->irq0_mask;
-	*irq_status1 &= vfe_dev->irq1_mask;
-	if (*irq_status0 &&
-		(*irq_status0 == msm_camera_io_r(vfe_dev->vfe_base + 0x38))) {
-		msm_camera_io_w(*irq_status0, vfe_dev->vfe_base + 0x30);
-		msm_camera_io_w_mb(1, vfe_dev->vfe_base + 0x24);
-	}
-
-	if (*irq_status1 & (1 << 0)) {
+	if (*irq_status1 & (1 << 0))
 		vfe_dev->error_info.camif_status =
 		msm_camera_io_r(vfe_dev->vfe_base + 0x31C);
 
@@ -1124,7 +1116,7 @@ static int msm_vfe40_start_fetch_engine(struct vfe_device *vfe_dev,
 		rc = vfe_dev->buf_mgr->ops->get_buf_by_index(
 			vfe_dev->buf_mgr, bufq_handle, fe_cfg->buf_idx, &buf);
 		if (rc < 0 || !buf) {
-			pr_err("%s: No fetch buffer rc= %d buf= %pK\n",
+			pr_err("%s: No fetch buffer rc= %d buf= %p\n",
 				__func__, rc, buf);
 			return -EINVAL;
 		}
@@ -1146,65 +1138,6 @@ static int msm_vfe40_start_fetch_engine(struct vfe_device *vfe_dev,
 		dual_vfe_res->axi_data[!vfe_dev->pdev->id]->
 		src_info[VFE_PIX_0].frame_id;
 	msm_camera_io_w_mb(0x1, vfe_dev->vfe_base + 0x378);
-	msm_camera_io_w_mb(0x10000, vfe_dev->vfe_base + 0x4C);
-	msm_camera_io_w_mb(0x20000, vfe_dev->vfe_base + 0x4C);
-
-	ISP_DBG("%s:VFE%d Fetch Engine ready\n", __func__, vfe_dev->pdev->id);
-	return 0;
-}
-
-static int msm_vfe40_start_fetch_engine_multi_pass(struct vfe_device *vfe_dev,
-	void *arg)
-{
-	int rc = 0;
-	uint32_t bufq_handle = 0;
-	struct msm_isp_buffer *buf = NULL;
-	struct msm_vfe_fetch_eng_multi_pass_start *fe_cfg = arg;
-	struct msm_isp_buffer_mapped_info mapped_info;
-
-	if (vfe_dev->fetch_engine_info.is_busy == 1) {
-		pr_err("%s: fetch engine busy\n", __func__);
-		return -EINVAL;
-	}
-	memset(&mapped_info, 0, sizeof(struct msm_isp_buffer_mapped_info));
-	/* There is other option of passing buffer address from user,
-		in such case, driver needs to map the buffer and use it*/
-	vfe_dev->fetch_engine_info.session_id = fe_cfg->session_id;
-	vfe_dev->fetch_engine_info.stream_id = fe_cfg->stream_id;
-	vfe_dev->fetch_engine_info.offline_mode = fe_cfg->offline_mode;
-	vfe_dev->fetch_engine_info.fd = fe_cfg->fd;
-
-	if (!fe_cfg->offline_mode) {
-		bufq_handle = vfe_dev->buf_mgr->ops->get_bufq_handle(
-				vfe_dev->buf_mgr, fe_cfg->session_id,
-				fe_cfg->stream_id);
-		vfe_dev->fetch_engine_info.bufq_handle = bufq_handle;
-
-		rc = vfe_dev->buf_mgr->ops->get_buf_by_index(
-			vfe_dev->buf_mgr, bufq_handle, fe_cfg->buf_idx, &buf);
-		if (rc < 0 || !buf) {
-			pr_err("%s: No fetch buffer rc= %d buf= %pK\n",
-				__func__, rc, buf);
-			return -EINVAL;
-		}
-		mapped_info = buf->mapped_info[0];
-		buf->state = MSM_ISP_BUFFER_STATE_DISPATCHED;
-	} else {
-		rc = vfe_dev->buf_mgr->ops->map_buf(vfe_dev->buf_mgr,
-			&mapped_info, fe_cfg->fd);
-		if (rc < 0) {
-			pr_err("%s: can not map buffer\n", __func__);
-			return -EINVAL;
-		}
-	}
-	vfe_dev->fetch_engine_info.buf_idx = fe_cfg->buf_idx;
-	vfe_dev->fetch_engine_info.is_busy = 1;
-
-	msm_camera_io_w(mapped_info.paddr + fe_cfg->input_buf_offset,
-		vfe_dev->vfe_base + 0x228);
-
-	msm_camera_io_w_mb(0x1, vfe_dev->vfe_base + 0x378);
-
 	msm_camera_io_w_mb(0x10000, vfe_dev->vfe_base + 0x4C);
 	msm_camera_io_w_mb(0x20000, vfe_dev->vfe_base + 0x4C);
 
@@ -1501,8 +1434,10 @@ static void msm_vfe40_update_camif_state(struct vfe_device *vfe_dev,
 		msm_camera_io_w(0xFFFFFFFF, vfe_dev->vfe_base + 0x30);
 		msm_camera_io_w_mb(0xFFFFFFFF, vfe_dev->vfe_base + 0x34);
 		msm_camera_io_w_mb(0x1, vfe_dev->vfe_base + 0x24);
-		msm_vfe40_config_irq(vfe_dev, 0x17, 0x81,
-				MSM_ISP_IRQ_ENABLE);
+
+		val = msm_camera_io_r(vfe_dev->vfe_base + 0x28);
+		val |= 0xF7;
+		msm_camera_io_w_mb(val, vfe_dev->vfe_base + 0x28);
 		msm_camera_io_w_mb(0x140000, vfe_dev->vfe_base + 0x318);
 
 		bus_en =
@@ -2344,8 +2279,6 @@ struct msm_vfe_hardware_info vfe40_hw_info = {
 			.process_axi_irq = msm_isp_process_axi_irq,
 			.process_stats_irq = msm_isp_process_stats_irq,
 			.process_epoch_irq = msm_vfe40_process_epoch_irq,
-			.config_irq = msm_vfe40_config_irq,
-			.process_eof_irq = msm_isp47_process_eof_irq,
 		},
 		.axi_ops = {
 			.reload_wm = msm_vfe40_axi_reload_wm,

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1145,8 +1145,9 @@ static void msm_vfe44_update_camif_state(struct vfe_device *vfe_dev,
 		msm_camera_io_w_mb(0x1FF008F, vfe_dev->vfe_base + 0x34);
 		msm_camera_io_w_mb(0x1, vfe_dev->vfe_base + 0x24);
 
-		msm_vfe44_config_irq(vfe_dev, 0x17, 0x81,
-				MSM_ISP_IRQ_ENABLE);
+		val = msm_camera_io_r(vfe_dev->vfe_base + 0x28);
+		val |= 0xF5;
+		msm_camera_io_w_mb(val, vfe_dev->vfe_base + 0x28);
 		msm_camera_io_w_mb(0x140000, vfe_dev->vfe_base + 0x318);
 
 		bus_en =
@@ -1972,8 +1973,6 @@ struct msm_vfe_hardware_info vfe44_hw_info = {
 			.process_axi_irq = msm_isp_process_axi_irq,
 			.process_stats_irq = msm_isp_process_stats_irq,
 			.process_epoch_irq = msm_vfe44_process_epoch_irq,
-			.config_irq = msm_vfe44_config_irq,
-			.process_eof_irq = msm_isp47_process_eof_irq,
 		},
 		.axi_ops = {
 			.reload_wm = msm_vfe44_axi_reload_wm,

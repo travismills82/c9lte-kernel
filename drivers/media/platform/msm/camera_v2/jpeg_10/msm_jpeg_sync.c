@@ -746,7 +746,8 @@ int __msm_jpeg_open(struct msm_jpeg_device *pgmn_dev)
 			__LINE__, rc);
 		return rc;
 	}
-	JPEG_DBG("%s:%d] platform resources - base %pK, irq %d\n",
+
+	JPEG_DBG("%s:%d] platform resources - mem %pK, base %pK, irq %d\n",
 		__func__, __LINE__,
 		pgmn_dev->mem, pgmn_dev->base, pgmn_dev->irq);
 	pgmn_dev->res_size = resource_size(pgmn_dev->mem);

@@ -64,15 +64,18 @@ static int msm_buf_check_head_sanity(struct msm_isp_bufq *bufq)
 		return -EINVAL;
 	}
 
-	if (prev->next != &bufq->head) {
-		pr_err("%s: Error! head prev->next is %pK should be %pK\n",
-			__func__, prev->next, &bufq->head);
+	prev = bufq->share_head.prev;
+	next = bufq->share_head.next;
+
+	if (prev->next != &bufq->share_head) {
+		pr_err("%s: Error! share_head prev->next is %pK should be %pK\n",
+			__func__, prev->next, &bufq->share_head);
 		return -EINVAL;
 	}
 
-	if (next->prev != &bufq->head) {
-		pr_err("%s: Error! head next->prev is %pK should be %pK\n",
-			__func__, next->prev, &bufq->head);
+	if (next->prev != &bufq->share_head) {
+		pr_err("%s: Error! share_head next->prev is %pK should be %pK\n",
+			__func__, next->prev, &bufq->share_head);
 		return -EINVAL;
 	}
 
@@ -190,9 +193,14 @@ static int msm_isp_prepare_isp_buf(struct msm_isp_buf_mgr *buf_mgr,
 	uint32_t accu_length = 0;
 	int iommu_hdl;
 
+	if (buf_mgr->secure_enable == NON_SECURE_MODE)
+		iommu_hdl = buf_mgr->ns_iommu_hdl;
+	else
+		iommu_hdl = buf_mgr->sec_iommu_hdl;
+
 	if (qbuf_buf->num_planes > MAX_PLANES_PER_STREAM) {
-		pr_err("%s: Invalid num_planes %d , stream id %x\n",
-			__func__, qbuf_buf->num_planes, stream_id);
+		pr_err("%s: Invalid num_planes %d \n",
+			__func__, qbuf_buf->num_planes);
 		return -EINVAL;
 	}
 
@@ -235,22 +243,14 @@ static void msm_isp_unprepare_v4l2_buf(
 	struct msm_isp_buffer_mapped_info *mapped_info;
 	int iommu_hdl;
 
-	if (!buf_mgr || !buf_info) {
-		pr_err("%s: NULL ptr %pK %pK\n", __func__,
-			buf_mgr, buf_info);
-		return;
-	}
+	if (buf_mgr->secure_enable == NON_SECURE_MODE)
+		iommu_hdl = buf_mgr->ns_iommu_hdl;
+	else
+		iommu_hdl = buf_mgr->sec_iommu_hdl;
 
 	if (buf_info->num_planes > VIDEO_MAX_PLANES) {
-		pr_err("%s: Invalid num_planes %d , stream id %x\n",
-			__func__, buf_info->num_planes, stream_id);
-		return;
-	}
-
-	bufq = msm_isp_get_bufq(buf_mgr, buf_info->bufq_handle);
-	if (!bufq) {
-		pr_err("%s: Invalid bufq, stream id %x\n",
-			__func__, stream_id);
+		pr_err("%s: Invalid num_planes %d \n",
+			__func__, buf_info->num_planes);
 		return;
 	}
 

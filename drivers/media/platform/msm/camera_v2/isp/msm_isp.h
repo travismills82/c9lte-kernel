@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -139,11 +139,6 @@ struct msm_vfe_irq_ops {
 	void (*process_stats_irq) (struct vfe_device *vfe_dev,
 		uint32_t irq_status0, uint32_t irq_status1,
 		struct msm_isp_timestamp *ts);
-	void (*config_irq)(struct vfe_device *vfe_dev,
-		uint32_t irq_status0, uint32_t irq_status1,
-		enum msm_isp_irq_operation);
-	void (*process_eof_irq)(struct vfe_device *vfe_dev,
-		uint32_t irq_status0);
 };
 
 struct msm_vfe_axi_ops {
@@ -421,7 +416,6 @@ struct msm_vfe_src_info {
 	uint64_t stats_ib;
 	enum msm_vfe_dual_hw_type dual_hw_type;
 	struct msm_vfe_dual_hw_ms_info dual_hw_ms_info;
-	uint32_t eof_id;
 };
 
 struct msm_vfe_fetch_engine_info {
@@ -727,14 +721,6 @@ struct vfe_device {
 	uint32_t isp_raw0_debug;
 	uint32_t isp_raw1_debug;
 	uint32_t isp_raw2_debug;
-
-	/* irq info */
-	uint32_t irq0_mask;
-	uint32_t irq1_mask;
-	/* before halt irq info */
-	uint32_t recovery_irq0_mask;
-	uint32_t recovery_irq1_mask;
-	uint32_t ms_frame_id;
 };
 
 struct vfe_parent_device {
