@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -159,7 +159,9 @@ static void msm_vfe47_init_qos_parms(struct vfe_device *vfe_dev)
 
 static void msm_vfe47_init_vbif_parms(struct vfe_device *vfe_dev)
 {
-	void __iomem *vfe_vbif_base = vfe_dev->vfe_vbif_base;
+	struct device_node *of_node;
+	int32_t i = 0, rc = 0;
+	uint32_t *dt_settings = NULL, *dt_regs = NULL, num_dt_entries = 0;
 
 	if (vfe_dev->vfe_hw_version >= VFE47_8996V1_VERSION) {
 		msm_camera_io_w(0x3,
@@ -574,7 +576,14 @@ static void msm_vfe47_process_epoch_irq(struct vfe_device *vfe_dev,
 	}
 }
 
-static void msm_vfe47_reg_update(struct vfe_device *vfe_dev,
+void msm_isp47_process_eof_irq(struct vfe_device *vfe_dev,
+	uint32_t irq_status0)
+{
+	if (irq_status0 & BIT(1))
+		vfe_dev->axi_data.src_info[VFE_PIX_0].eof_id++;
+}
+
+void msm_vfe47_reg_update(struct vfe_device *vfe_dev,
 	enum msm_vfe_input_src frame_src)
 {
 	uint32_t update_mask = 0;
@@ -1139,9 +1148,11 @@ static void msm_vfe47_update_camif_state(struct vfe_device *vfe_dev,
 
 	val = msm_camera_io_r(vfe_dev->vfe_base + 0x47C);
 	if (update_state == ENABLE_CAMIF) {
-		msm_camera_io_w(0xFF801F, vfe_dev->vfe_base + 0x64);
-		msm_camera_io_w_mb(0x1FF008F, vfe_dev->vfe_base + 0x68);
-		msm_camera_io_w_mb(0x1, vfe_dev->vfe_base + 0x58);
+		msm_camera_io_w(0x0, vfe_dev->vfe_base + 0x64);
+		msm_camera_io_w(0x81, vfe_dev->vfe_base + 0x68);
+		msm_camera_io_w(0x1, vfe_dev->vfe_base + 0x58);
+		msm_vfe47_config_irq(vfe_dev, 0x17, 0x81,
+					MSM_ISP_IRQ_ENABLE);
 
 		val = msm_camera_io_r(vfe_dev->vfe_base + 0x5C);
 		val |= 0xF5;
@@ -2056,6 +2067,8 @@ struct msm_vfe_hardware_info vfe47_hw_info = {
 			.process_axi_irq = msm_isp_process_axi_irq,
 			.process_stats_irq = msm_isp_process_stats_irq,
 			.process_epoch_irq = msm_vfe47_process_epoch_irq,
+			.config_irq = msm_vfe47_config_irq,
+			.process_eof_irq = msm_isp47_process_eof_irq,
 		},
 		.axi_ops = {
 			.reload_wm = msm_vfe47_axi_reload_wm,

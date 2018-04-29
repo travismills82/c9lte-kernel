@@ -46,9 +46,6 @@
 #include "spi_qsd.h"
 
 #define SPI_MAX_BYTES_PER_WORD			(4)
-#ifdef CONFIG_SEC_FACTORY
-#undef CONFIG_ESE_SECURE
-#endif
 
 static int msm_spi_pm_resume_runtime(struct device *device);
 static int msm_spi_pm_suspend_runtime(struct device *device);

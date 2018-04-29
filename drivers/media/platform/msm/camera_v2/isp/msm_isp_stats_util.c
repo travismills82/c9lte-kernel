@@ -112,11 +112,10 @@ static int32_t msm_isp_stats_buf_divert(struct vfe_device *vfe_dev,
 	struct msm_isp_stats_event *stats_event = NULL;
 	struct msm_isp_sw_framskip *sw_skip = NULL;
 
-	if (!vfe_dev || !done_buf || !ts || !buf_event || !stream_info ||
-		!comp_stats_type_mask) {
-		pr_err("%s:%d failed: invalid params %pK %pK %pK %pK %pK %pK\n",
-			__func__, __LINE__, vfe_dev, done_buf, ts, buf_event,
-			stream_info, comp_stats_type_mask);
+	if (!vfe_dev || !ts || !buf_event || !stream_info) {
+		pr_err("%s:%d failed: invalid params %pK %pK %pK %pK\n",
+			__func__, __LINE__, vfe_dev, ts, buf_event,
+			stream_info);
 		return -EINVAL;
 	}
 	frame_id = vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id;
