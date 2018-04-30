@@ -216,8 +216,6 @@ do { \
 #else
 #define SET_TLBIVA(b, c, v)      SET_CTX_REG(CB_TLBIVA, (b), (c), (v))
 #define SET_TLBIVAA(b, c, v)     SET_CTX_REG(CB_TLBIVAA, (b), (c), (v))
-//#define SET_TLBIASID(b, c, v)    SET_CTX_REG(CB_TLBIASID, (b), (c), (v))
-//#define SET_TLBIALL(b, c, v)     SET_CTX_REG(CB_TLBIALL, (b), (c), (v))
 #define SET_TLBIVAL(b, c, v)     SET_CTX_REG(CB_TLBIVAL, (b), (c), (v))
 #define SET_TLBIVAAL(b, c, v)    SET_CTX_REG(CB_TLBIVAAL, (b), (c), (v))
 #endif

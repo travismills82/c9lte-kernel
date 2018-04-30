@@ -3206,11 +3206,6 @@ static void mdss_panelinfo_to_fb_var(struct mdss_panel_info *pinfo,
 		var->pixclock = KHZ2PICOS(
 				(unsigned long int) pinfo->clk_rate / 1000);
 	}
-
-	if (pinfo->physical_width)
-		var->width = pinfo->physical_width;
-	if (pinfo->physical_height)
-		var->height = pinfo->physical_height;
 }
 
 /**

@@ -383,6 +383,8 @@ static int pil_alloc_region(struct pil_priv *priv, phys_addr_t min_addr,
 	if (region == NULL) {
 		pil_err(priv->desc, "Failed to allocate relocatable region of size %zx\n",
 					size);
+		priv->region_start = 0;
+		priv->region_end = 0;
 		return -ENOMEM;
 	}
 
@@ -770,6 +772,8 @@ out:
 	up_read(&pil_pm_rwsem);
 	if (ret) {
 		if (priv->region) {
+			if (desc->clear_fw_region && priv->region_start)
+				pil_clear_segment(desc);
 			dma_free_attrs(desc->dev, priv->region_size,
 					priv->region, priv->region_start,
 					&desc->attrs);

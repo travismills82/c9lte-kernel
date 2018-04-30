@@ -1051,10 +1051,10 @@ EXPORT_SYMBOL(mmc_cmdq_discard_queue);
  *	@tag: the request tag.
  *	@err: non-zero is error, success otherwise
  */
-void mmc_cmdq_post_req(struct mmc_host *host, int tag, int err)
+void mmc_cmdq_post_req(struct mmc_host *host, int tag, int err, bool is_dcmd)
 {
 	if (likely(host->cmdq_ops->post_req))
-		host->cmdq_ops->post_req(host, tag, err);
+		host->cmdq_ops->post_req(host, tag, err, is_dcmd);
 }
 EXPORT_SYMBOL(mmc_cmdq_post_req);
 
@@ -1284,10 +1284,6 @@ EXPORT_SYMBOL(mmc_start_req);
  */
 void mmc_wait_for_req(struct mmc_host *host, struct mmc_request *mrq)
 {
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	if (mmc_bus_needs_resume(host))
-		mmc_resume_bus(host);
-#endif
 	__mmc_start_req(host, mrq);
 	mmc_wait_for_req_done(host, mrq);
 }
@@ -2479,6 +2475,7 @@ int mmc_resume_bus(struct mmc_host *host)
 	mmc_bus_put(host);
 	pr_info("%s: Deferred resume completed\n", mmc_hostname(host));
 
+	mmc_bus_put(host);
 	mmc_release_host(host);
 
 	return 0;
